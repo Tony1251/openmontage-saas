@@ -1,0 +1,67 @@
+name: openmontage-saas
+
+x-api-env: &api-env
+  DATABASE_URL: postgresql+asyncpg://om:${POSTGRES_PASSWORD}@postgres:5432/om_saas
+  MCP_URL: http://openmontage-mcp:8765/mcp
+  MCP_TOKEN: ${MCP_TOKEN}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+  STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO}
+  STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE}
+  API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
+  WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:3000}
+  CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
+  OSS_ENDPOINT: ${OSS_ENDPOINT:-}
+  OSS_BUCKET: ${OSS_BUCKET:-}
+  OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:-}
+  OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:-}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: om
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-om}
+      POSTGRES_DB: om_saas
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U om -d om_saas"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: ./apps/api
+    container_name: om-saas-api
+    env_file: .env
+    environment:
+      <<: *api-env
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres: {condition: service_healthy}
+    networks: [saasnet]
+
+  web:
+    build: ./apps/web
+    container_name: om-saas-web
+    env_file: .env
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:8000
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+    depends_on:
+      - api
+    networks: [saasnet]
+
+networks:
+  saasnet:
+    driver: bridge
+
+volumes:
+  postgres_data:
