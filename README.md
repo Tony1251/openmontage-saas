@@ -1,4 +1,6 @@
 # OpenMontage SaaS
+[![CI](https://github.com/yuhengluo/openmontage-saas/actions/workflows/ci.yml/badge.svg)](https://github.com/yuhengluo/openmontage-saas/actions)
+
 
 Multi-tenant SaaS wrapping the OpenMontage video-generation pipeline (95 tools) behind a pay-per-render HTTP API + Next.js dashboard + Stripe billing.
 

@@ -36,3 +36,4 @@ logs/
 
 # Runtime
 postgres_data/
+.env.test
