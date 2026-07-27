@@ -9,8 +9,9 @@ from app.models import QuotaUsage, Workspace
 
 
 def current_period_start() -> datetime:
+    """Returns naive UTC datetime for TIMESTAMP WITHOUT TIME ZONE column."""
     now = datetime.now(timezone.utc)
-    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return datetime(now.year, now.month, 1, tzinfo=None)
 
 
 async def check_and_increment_renders(db: AsyncSession, workspace: Workspace) -> int:
@@ -30,7 +31,7 @@ async def check_and_increment_renders(db: AsyncSession, workspace: Workspace) ->
             QuotaUsage.period_start == period,
             QuotaUsage.renders_used < workspace.monthly_render_quota,
         )
-        .values(renders_used=QuotaUsage.renders_used + 1, updated_at=datetime.now(timezone.utc))
+        .values(renders_used=QuotaUsage.renders_used + 1, updated_at=datetime.now())
         .returning(QuotaUsage.renders_used)
         .execution_options(synchronize_session=False)
     )

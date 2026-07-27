@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { UserButton } from '@clerk/nextjs';
 import { LayoutDashboard, Film, Key, CreditCard } from 'lucide-react';
+
+const isMock = process.env.MOCK_MODE === 'true';
 
 const nav = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -23,7 +24,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
           ))}
         </nav>
-        <div className="absolute bottom-4 left-4"><UserButton /></div>
+        <div className="absolute bottom-4 left-4">
+          {isMock ? (
+            <div className="rounded-md bg-yellow-500/20 px-3 py-2 text-xs text-yellow-700">MOCK MODE</div>
+          ) : (
+            <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">User</div>
+          )}
+        </div>
       </aside>
       <main className="flex-1 p-8">{children}</main>
     </div>

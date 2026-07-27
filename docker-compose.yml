@@ -39,6 +39,7 @@ services:
     env_file: .env
     environment:
       <<: *api-env
+      MOCK_MODE: ${MOCK_MODE:-true}
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -54,7 +55,8 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://api:8000
       - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY:-}
+      - MOCK_MODE=${MOCK_MODE:-true}
     depends_on:
       - api
     networks: [saasnet]

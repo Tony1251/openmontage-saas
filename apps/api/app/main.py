@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os, sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +24,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url=None,
 )
+
+if os.environ.get("MOCK_MODE") == "true":
+    print("[openmontage-saas] ⚠ MOCK_MODE=true — auth + Stripe bypassed for local dev", file=sys.stderr)
 
 app.add_middleware(
     CORSMiddleware,

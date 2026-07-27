@@ -1,9 +1,16 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+const isMock = process.env.MOCK_MODE === 'true';
 
-const isProtected = createRouteMatcher(['/dashboard(.*)', '/admin(.*)', '/api(.*)']);
+export default async function middleware(req: any) {
+  if (isMock) return; // bypass auth in dev mock mode
 
-export default clerkMiddleware((auth, req) => {
-  if (isProtected(req)) auth().protect();
-});
+  // Dynamic import to avoid eager key validation
+  const { clerkMiddleware, createRouteMatcher } = await import('@clerk/nextjs/server');
+  const isProtected = createRouteMatcher(['/dashboard(.*)', '/admin(.*)', '/api(.*)']);
+  return clerkMiddleware((auth: any, req2: any) => {
+    if (isProtected(req2)) auth().protect();
+  })(req);
+}
 
-export const config = { matcher: ['/((?!_next|[^?]*\\.(?:html?|css|js|jpg|png|svg|ico)).*)', '/(api|trpc)(.*)'] };
+export const config = {
+  matcher: ['/((?!_next|[^?]*\\.(?:html?|css|js|jpg|png|svg|ico)).*)', '/(api|trpc)(.*)'],
+};

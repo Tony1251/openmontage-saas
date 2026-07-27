@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import { Film, Zap, Shield, ArrowRight } from 'lucide-react';
+
+const isMock = process.env.MOCK_MODE === 'true';
 
 export default function Home() {
   return (
@@ -11,17 +12,20 @@ export default function Home() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="text-xl font-bold">OpenMontage</Link>
           <div className="flex items-center gap-4">
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button variant="ghost">Sign in</Button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <Button>Get started</Button>
-              </SignUpButton>
-            </SignedOut>
-            <SignedIn>
-              <UserButton />
-            </SignedIn>
+            {isMock ? (
+              <Link href="/dashboard">
+                <Button>Dashboard</Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/sign-in">
+                  <Button variant="ghost">Sign in</Button>
+                </Link>
+                <Link href="/sign-up">
+                  <Button>Get started</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -35,16 +39,9 @@ export default function Home() {
             One API call. 89 video tools. Pay only for what you render.
           </p>
           <div className="mt-8 flex justify-center gap-4">
-            <SignedOut>
-              <SignUpButton mode="modal">
-                <Button size="lg">Start free <ArrowRight className="ml-2 h-4 w-4" /></Button>
-              </SignUpButton>
-            </SignedOut>
-            <SignedIn>
-              <Link href="/dashboard">
-                <Button size="lg">Open dashboard <ArrowRight className="ml-2 h-4 w-4" /></Button>
-              </Link>
-            </SignedIn>
+            <Link href="/dashboard">
+              <Button size="lg">Open dashboard <ArrowRight className="ml-2 h-4 w-4" /></Button>
+            </Link>
           </div>
         </section>
 
@@ -79,16 +76,9 @@ export default function Home() {
                   <ul className="mt-4 space-y-2 text-sm">
                     {plan.features.map((f) => <li key={f}>• {f}</li>)}
                   </ul>
-                  <SignedOut>
-                    <SignUpButton mode="modal">
-                      <Button className="mt-6 w-full" variant={plan.highlight ? 'default' : 'outline'}>Start</Button>
-                    </SignUpButton>
-                  </SignedOut>
-                  <SignedIn>
-                    <Link href="/dashboard/billing">
-                      <Button className="mt-6 w-full" variant={plan.highlight ? 'default' : 'outline'}>Choose</Button>
-                    </Link>
-                  </SignedIn>
+                  <Link href="/dashboard">
+                    <Button className="mt-6 w-full" variant={plan.highlight ? 'default' : 'outline'}>Start</Button>
+                  </Link>
                 </CardContent>
               </Card>
             ))}

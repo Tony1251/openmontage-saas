@@ -1,12 +1,20 @@
-import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
+const isMock = process.env.MOCK_MODE === 'true';
+
 export default async function DashboardPage() {
-  const { userId } = await auth();
-  if (!userId) redirect('/sign-in');
+  if (!isMock) {
+    try {
+      const { auth } = await import('@clerk/nextjs/server');
+      const { userId } = await auth();
+      if (!userId) redirect('/sign-in');
+    } catch {
+      redirect('/sign-in');
+    }
+  }
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Overview</h1>
