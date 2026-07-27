@@ -18,18 +18,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # ── Enums ──
-    plan_enum = postgresql.ENUM("free", "pro", "enterprise", name="plan", create_type=True)
-    plan_enum.create(op.get_bind())
+    plan_enum = postgresql.ENUM("free", "pro", "enterprise", name="plan", create_type=False)
+    plan_enum.create(op.get_bind(), checkfirst=True)
     render_status_enum = postgresql.ENUM(
         "queued", "running", "succeeded", "failed", "cancelled",
-        name="render_status", create_type=True,
+        name="render_status", create_type=False,
     )
-    render_status_enum.create(op.get_bind())
+    render_status_enum.create(op.get_bind(), checkfirst=True)
     api_key_status_enum = postgresql.ENUM(
         "active", "revoked",
-        name="api_key_status", create_type=True,
+        name="api_key_status", create_type=False,
     )
-    api_key_status_enum.create(op.get_bind())
+    api_key_status_enum.create(op.get_bind(), checkfirst=True)
 
     # ── users ──
     op.create_table(
