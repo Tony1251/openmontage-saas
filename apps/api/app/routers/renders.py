@@ -9,7 +9,7 @@ from app.auth import get_auth, AuthContext, check_idempotency, record_idempotenc
 from app.db import get_db
 from app.models import Render, RenderStatus
 from app.schemas.renders import CreateRenderRequest, RenderResponse
-from app.services.openmontage import get_mcp, MCPClient
+from app.services.openmontage import get_mcp as _get_mcp
 from app.services.quota import check_and_increment_renders
 from app.services.audit import log as audit_log
 
@@ -21,7 +21,6 @@ async def create_render(
     body: CreateRenderRequest,
     auth: Annotated[AuthContext, Depends(get_auth)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    mcp: Annotated[MCPClient, Depends(get_mcp)],
     idempotency_key: Annotated[str | None, Header()] = None,
 ) -> dict:
     existing_id = check_idempotency(idempotency_key)
@@ -39,12 +38,13 @@ async def create_render(
     await check_and_increment_renders(db, auth.workspace)
 
     try:
+        mcp = _get_mcp()
         ark_task_id = await mcp.submit_video_render(
             prompt=body.prompt,
             model=body.model,
             duration_sec=body.duration_sec,
             resolution=body.resolution,
-            extra_metadata=body.extra_metadata,
+            metadata=body.extra_metadata,
         )
         status_val = RenderStatus.running if ark_task_id else RenderStatus.queued
     except Exception:
