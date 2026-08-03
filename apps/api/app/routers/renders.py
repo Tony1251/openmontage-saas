@@ -37,19 +37,24 @@ async def create_render(
 
     await check_and_increment_renders(db, auth.workspace)
 
-    try:
-        mcp = _get_mcp()
-        ark_task_id = await mcp.submit_video_render(
-            prompt=body.prompt,
-            model=body.model,
-            duration_sec=body.duration_sec,
-            resolution=body.resolution,
-            metadata=body.extra_metadata,
-        )
-        status_val = RenderStatus.running if ark_task_id else RenderStatus.queued
-    except Exception:
-        status_val = RenderStatus.queued
+    import os
+    if os.environ.get("MOCK_MODE") == "true":
         ark_task_id = ""
+        status_val = RenderStatus.queued
+    else:
+        try:
+            mcp = _get_mcp()
+            ark_task_id = await mcp.submit_video_render(
+                prompt=body.prompt,
+                model=body.model,
+                duration_sec=body.duration_sec,
+                resolution=body.resolution,
+                metadata=body.extra_metadata,
+            )
+            status_val = RenderStatus.running if ark_task_id else RenderStatus.queued
+        except Exception:
+            status_val = RenderStatus.queued
+            ark_task_id = ""
 
     render = Render(
         workspace_id=auth.workspace.id,

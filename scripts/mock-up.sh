@@ -44,7 +44,7 @@ nohup env \
   API_BASE_URL='http://localhost:8000' WEB_BASE_URL='http://localhost:3000' \
   CLERK_WEBHOOK_SECRET='' MOCK_MODE='true' \
   "$API_DIR/.venv/bin/uvicorn" app.main:app \
-    --host 127.0.0.1 --port 8000 --log-level info \
+    --host 127.0.0.1 --port 8000 --log-level info --app-dir "$API_DIR" \
   > "$LOGS_DIR/api.log" 2>&1 &
 echo $! > "$PIDS_DIR/api.pid"
 sleep 4

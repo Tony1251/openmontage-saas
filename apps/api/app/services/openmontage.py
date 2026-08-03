@@ -8,7 +8,7 @@ class MCPClient:
         self._client = httpx.AsyncClient(
             base_url=settings.mcp_url,
             headers={"Authorization": f"Bearer {settings.mcp_token}", "Content-Type": "application/json"},
-            timeout=60.0,
+            timeout=10.0,
         )
 
     async def call_tool(self, name: str, arguments: dict) -> dict:
