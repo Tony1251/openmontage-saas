@@ -66,4 +66,15 @@ clean:  ## Nuke venvs, caches, build artefacts (keeps db running)
 all-stop: mock-down db-stop  ## Stop everything (db included)
 all-restart: all-stop mock  ## Full restart
 
+# ─── Live (production) cutover ────────────────────────────────────────────────
+live:  ## Print checklist for switching from MOCK_MODE to live
+	@echo "✓ Cutover checklist:"
+	@echo "1. Set MOCK_MODE=false in apps/api/.env and apps/web/.env"
+	@echo "2. Set real Clerk keys (publishable + secret + jwt + webhook)"
+	@echo "3. Set real Stripe keys (secret + webhook + price IDs)"
+	@echo "4. Set real MCP_URL and MCP_TOKEN (your OpenMontage deployment)"
+	@echo "5. Set real DATABASE_URL (managed Postgres recommended)"
+	@echo "6. Restart: make api && make web"
+	@echo "7. Test: curl http://localhost:8000/health (expect status:ok)"
+
 .DEFAULT_GOAL := help

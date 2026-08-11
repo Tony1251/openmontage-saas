@@ -1,0 +1,36 @@
+# Fly.io — Web 专属 app（与 fly.api.toml 拆分部署时使用）。
+#   fly launch --config fly.web.toml --name openmontage-saas-web
+app = "openmontage-saas-web"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+  [build.args]
+    TARGET = "web"
+    NEXT_PUBLIC_API_URL = "https://openmontage-saas-api.fly.dev"
+    NEXT_PUBLIC_MOCK_MODE = "false"
+
+[env]
+  NODE_ENV = "production"
+  MOCK_MODE = "false"
+
+[[services]]
+  internal_port = 3000
+  protocol = "tcp"
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+[[services.tcp_checks]]
+  interval = 10000
+  timeout = 2000
+  grace_period = 30000
+  port = 3000
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

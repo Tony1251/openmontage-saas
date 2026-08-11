@@ -24,7 +24,9 @@ dev = [
     "ruff>=0.7.0",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
-    "httpx-mock>=0.32.0",
+    # NOTE: httpx-mock was removed from dev extras — PyPI only ships <=0.1.1,
+    # so ">=0.32.0" is unresolvable and broke `pip install -e ".[dev]"`.
+    # Tests mock httpx via unittest.mock in tests/conftest.py.
 ]
 
 [tool.ruff]
