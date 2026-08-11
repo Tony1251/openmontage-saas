@@ -38,19 +38,22 @@ async def create_render(
     await check_and_increment_renders(db, auth.workspace)
 
     import os
-    if os.environ.get("MOCK_MODE") == "true":
+    # In MOCK_MODE=true, skip MCP submission unless MCP_E2E=1 explicitly enables
+    # the E2E path (use with MCP_RENDER_TOOL=mock_video_submit for free tests).
+    if os.environ.get("MOCK_MODE") == "true" and os.environ.get("MCP_E2E") != "1":
         ark_task_id = ""
         status_val = RenderStatus.queued
     else:
         try:
             mcp = _get_mcp()
-            ark_task_id = await mcp.submit_video_render(
+            sub = await mcp.submit_video_render(
                 prompt=body.prompt,
                 model=body.model,
                 duration_sec=body.duration_sec,
                 resolution=body.resolution,
                 metadata=body.extra_metadata,
             )
+            ark_task_id = sub.get("task_id", "")
             status_val = RenderStatus.running if ark_task_id else RenderStatus.queued
         except Exception:
             status_val = RenderStatus.queued
