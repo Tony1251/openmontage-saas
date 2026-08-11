@@ -9,9 +9,15 @@ async def test_create_render_returns_queued(client):
         "/v1/renders",
         json={"prompt": "A beautiful sunset", "duration_sec": 5, "resolution": "720p"},
     )
-    # With all deps mocked, this might fail at quota check (no DB row).
-    # What we test: route is reachable and returns a structured error.
-    assert response.status_code in (200, 201, 429, 500)
+    # With MCP mocked and MOCK_MODE bypassing auth,
+    # the handler should return 201 (success) or 429 (quota exceeded).
+    # 422 should no longer happen since we removed the MCP Depends.
+    assert response.status_code in (201, 429)
+    body = response.json()
+    assert "id" in body or "detail" in body
+    if response.status_code == 201:
+        assert "status" in body
+        assert body["status"] in ("queued", "running")
 
 
 @pytest.mark.asyncio

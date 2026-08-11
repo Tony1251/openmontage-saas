@@ -1,0 +1,36 @@
+# OpenMontage SaaS — 单 app（API）Fly.io 配置。
+# 多 app 拆分请看 fly.api.toml / fly.web.toml。
+app = "openmontage-saas"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+  [build.args]
+    TARGET = "api"
+
+[env]
+  MOCK_MODE = "false"
+
+[[services]]
+  internal_port = 8000
+  protocol = "tcp"
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+[[services.tcp_checks]]
+  interval = 10000
+  timeout = 2000
+  grace_period = 20000
+  port = 8000
+
+[deploy]
+  release_command = "alembic upgrade head"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

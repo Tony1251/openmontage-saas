@@ -1,0 +1,73 @@
+# Production Docker Compose for a single VPS (or any single host).
+#   cp .env.production.template .env.production && edit secrets
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+#
+# NOTE: builds use apps/*/Dockerfile (context = the app dir) on purpose so the
+# same Dockerfiles power both `docker-compose.yml` (dev) and this file.
+name: openmontage-saas-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: om
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: om_saas
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U om -d om_saas"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [backend]
+
+  api:
+    build:
+      context: ./apps/api
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgresql+asyncpg://om:${POSTGRES_PASSWORD:?}@postgres:5432/om_saas
+      MOCK_MODE: "false"
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [backend]
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_URL: ${API_BASE_URL:-https://api.your-domain.com}
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
+        NEXT_PUBLIC_MOCK_MODE: "false"
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      MOCK_MODE: "false"
+      NEXT_PUBLIC_MOCK_MODE: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
+    networks: [backend]
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  pgdata:

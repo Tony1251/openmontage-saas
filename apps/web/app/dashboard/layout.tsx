@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { LayoutDashboard, Film, Key, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Film, Key, CreditCard, Webhook } from 'lucide-react';
 
 const isMock = process.env.MOCK_MODE === 'true';
 
@@ -7,6 +7,7 @@ const nav = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/renders', label: 'Renders', icon: Film },
   { href: '/dashboard/api-keys', label: 'API Keys', icon: Key },
+  { href: '/dashboard/webhooks', label: 'Webhooks', icon: Webhook },
   { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
 ];
 

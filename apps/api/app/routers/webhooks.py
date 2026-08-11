@@ -1,4 +1,6 @@
 from __future__ import annotations
+import os
+import json
 from typing import Annotated
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from sqlalchemy import select, update
@@ -6,11 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 
 from app.db import get_db
-from app.models import Render, RenderStatus, Subscription, Plan, Workspace
+from app.models import Render, RenderStatus, Subscription, Plan, Workspace, User, WorkspaceMember
 from app.config import settings
 from app.services.stripe_service import verify_webhook
 
 router = APIRouter(tags=["webhooks"])
+
+MOCK_MODE = os.environ.get("MOCK_MODE") == "true"
 
 
 @router.post("/stripe")
@@ -18,13 +22,16 @@ async def stripe_webhook(
     request: Request,
     stripe_signature: Annotated[str | None, Header()] = None,
 ) -> dict:
-    if not stripe_signature:
+    if not stripe_signature and not MOCK_MODE:
         raise HTTPException(status_code=400, detail={"error": "missing_signature"})
     payload = await request.body()
     try:
-        event = verify_webhook(payload, stripe_signature)
+        event = verify_webhook(payload, stripe_signature or "")
     except Exception:
-        raise HTTPException(status_code=400, detail={"error": "invalid_signature"})
+        if MOCK_MODE:
+            event = json.loads(payload)
+        else:
+            raise HTTPException(status_code=400, detail={"error": "invalid_signature"})
 
     db = await anext(get_db())
 
@@ -94,6 +101,121 @@ async def stripe_webhook(
 
         elif event_type in ("invoice.paid", "invoice.failed"):
             pass
+
+        await db.commit()
+    finally:
+        await db.close()
+
+    return {"received": True}
+
+
+@router.post("/clerk")
+async def clerk_webhook(
+    request: Request,
+    svix_signature: Annotated[str | None, Header(alias="svix-signature")] = None,
+    svix_id: Annotated[str | None, Header(alias="svix-id")] = None,
+    svix_timestamp: Annotated[str | None, Header(alias="svix-timestamp")] = None,
+) -> dict:
+    """Handle Clerk webhook events: user.created, user.updated, user.deleted."""
+    payload = await request.body()
+
+    if not MOCK_MODE:
+        if not svix_signature or not svix_id or not svix_timestamp:
+            raise HTTPException(status_code=400, detail={"error": "missing_svix_headers"})
+        try:
+            from svix.webhooks import Webhook
+            wh = Webhook(settings.clerk_webhook_secret)
+            wh.verify(payload, {
+                "svix-id": svix_id,
+                "svix-timestamp": svix_timestamp,
+                "svix-signature": svix_signature,
+            })
+        except Exception:
+            raise HTTPException(status_code=400, detail={"error": "invalid_signature"})
+
+    try:
+        body = json.loads(payload)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail={"error": "invalid_json"})
+
+    event_type = body.get("type", "")
+    data = body.get("data", {})
+
+    db = await anext(get_db())
+    try:
+        if event_type == "user.created":
+            clerk_id = data.get("id", "")
+            email = data.get("email_addresses", [{}])[0].get("email_address", "") if data.get("email_addresses") else ""
+            name = data.get("first_name", "") or ""
+            if data.get("last_name"):
+                name = f"{name} {data['last_name']}".strip()
+            avatar_url = data.get("image_url") or data.get("profile_image_url")
+
+            existing = await db.execute(select(User).where(User.clerk_user_id == clerk_id))
+            user = existing.scalar_one_or_none()
+
+            if user:
+                user.email = email
+                if name:
+                    user.name = name
+                if avatar_url:
+                    user.avatar_url = avatar_url
+                await db.commit()
+            else:
+                user = User(
+                    clerk_user_id=clerk_id,
+                    email=email,
+                    name=name or None,
+                    avatar_url=avatar_url,
+                )
+                db.add(user)
+                await db.flush()
+
+                slug = f"ws-{user.id}-{abs(hash(clerk_id)) % 10000:04d}"
+                workspace = Workspace(
+                    owner_id=user.id,
+                    name=f"{name or email.split('@')[0]}'s Workspace",
+                    slug=slug,
+                    plan="free",
+                    monthly_render_quota=10,
+                )
+                db.add(workspace)
+                await db.flush()
+
+                member = WorkspaceMember(
+                    workspace_id=workspace.id,
+                    user_id=user.id,
+                    role="owner",
+                )
+                db.add(member)
+                await db.commit()
+
+        elif event_type == "user.updated":
+            clerk_id = data.get("id", "")
+            email = data.get("email_addresses", [{}])[0].get("email_address", "") if data.get("email_addresses") else ""
+            name = data.get("first_name", "") or ""
+            if data.get("last_name"):
+                name = f"{name} {data['last_name']}".strip()
+            avatar_url = data.get("image_url") or data.get("profile_image_url")
+
+            existing = await db.execute(select(User).where(User.clerk_user_id == clerk_id))
+            user = existing.scalar_one_or_none()
+            if user:
+                if email:
+                    user.email = email
+                if name:
+                    user.name = name
+                if avatar_url:
+                    user.avatar_url = avatar_url
+                await db.commit()
+
+        elif event_type == "user.deleted":
+            clerk_id = data.get("id", "")
+            existing = await db.execute(select(User).where(User.clerk_user_id == clerk_id))
+            user = existing.scalar_one_or_none()
+            if user:
+                await db.delete(user)
+                await db.commit()
 
         await db.commit()
     finally:

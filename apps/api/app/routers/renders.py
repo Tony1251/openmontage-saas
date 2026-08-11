@@ -9,7 +9,7 @@ from app.auth import get_auth, AuthContext, check_idempotency, record_idempotenc
 from app.db import get_db
 from app.models import Render, RenderStatus
 from app.schemas.renders import CreateRenderRequest, RenderResponse
-from app.services.openmontage import get_mcp, MCPClient
+from app.services.openmontage import get_mcp as _get_mcp
 from app.services.quota import check_and_increment_renders
 from app.services.audit import log as audit_log
 
@@ -21,7 +21,6 @@ async def create_render(
     body: CreateRenderRequest,
     auth: Annotated[AuthContext, Depends(get_auth)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    mcp: Annotated[MCPClient, Depends(get_mcp)],
     idempotency_key: Annotated[str | None, Header()] = None,
 ) -> dict:
     existing_id = check_idempotency(idempotency_key)
@@ -38,18 +37,27 @@ async def create_render(
 
     await check_and_increment_renders(db, auth.workspace)
 
-    try:
-        ark_task_id = await mcp.submit_video_render(
-            prompt=body.prompt,
-            model=body.model,
-            duration_sec=body.duration_sec,
-            resolution=body.resolution,
-            extra_metadata=body.extra_metadata,
-        )
-        status_val = RenderStatus.running if ark_task_id else RenderStatus.queued
-    except Exception:
-        status_val = RenderStatus.queued
+    import os
+    # In MOCK_MODE=true, skip MCP submission unless MCP_E2E=1 explicitly enables
+    # the E2E path (use with MCP_RENDER_TOOL=mock_video_submit for free tests).
+    if os.environ.get("MOCK_MODE") == "true" and os.environ.get("MCP_E2E") != "1":
         ark_task_id = ""
+        status_val = RenderStatus.queued
+    else:
+        try:
+            mcp = _get_mcp()
+            sub = await mcp.submit_video_render(
+                prompt=body.prompt,
+                model=body.model,
+                duration_sec=body.duration_sec,
+                resolution=body.resolution,
+                metadata=body.extra_metadata,
+            )
+            ark_task_id = sub.get("task_id", "")
+            status_val = RenderStatus.running if ark_task_id else RenderStatus.queued
+        except Exception:
+            status_val = RenderStatus.queued
+            ark_task_id = ""
 
     render = Render(
         workspace_id=auth.workspace.id,

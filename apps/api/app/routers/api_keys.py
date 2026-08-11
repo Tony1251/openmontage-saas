@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from app.auth import get_auth, AuthContext, generate_api_key, hash_secret
 from app.db import get_db
 from app.models import ApiKey, ApiKeyStatus
-from app.schemas.api_keys import CreateApiKeyRequest, ApiKeyResponse, ApiKeyWithSecret
+from app.schemas.api_keys import CreateApiKeyRequest, CreateApiKeyResponse, ApiKeyResponse
 
 router = APIRouter(tags=["api-keys"])
 
@@ -18,7 +18,7 @@ async def create_api_key(
     body: CreateApiKeyRequest,
     auth: Annotated[AuthContext, Depends(get_auth)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> ApiKeyWithSecret:
+) -> CreateApiKeyResponse:
     public_key, full_secret = generate_api_key()
     secret_part = full_secret[len("sk_live_"):] if full_secret.startswith("sk_live_") else full_secret[len("sk_test_"):]
     key_hash = hash_secret(secret_part)
@@ -33,15 +33,12 @@ async def create_api_key(
     await db.commit()
     await db.refresh(api_key)
 
-    return ApiKeyWithSecret(
+    return CreateApiKeyResponse(
         id=api_key.id,
-        workspace_id=api_key.workspace_id,
         public_key=api_key.public_key,
+        full_key=full_secret,
         label=api_key.label,
-        status=api_key.status.value if hasattr(api_key.status, "value") else api_key.status,
-        last_used_at=None,
         created_at=api_key.created_at.isoformat() if api_key.created_at else "",
-        secret=full_secret,
     )
 
 

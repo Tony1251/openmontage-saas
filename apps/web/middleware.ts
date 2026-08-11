@@ -5,10 +5,10 @@ export default async function middleware(req: any) {
 
   // Dynamic import to avoid eager key validation
   const { clerkMiddleware, createRouteMatcher } = await import('@clerk/nextjs/server');
-  const isProtected = createRouteMatcher(['/dashboard(.*)', '/admin(.*)', '/api(.*)']);
+  const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/admin(.*)', '/api(.*)']);
   return clerkMiddleware((auth: any, req2: any) => {
-    if (isProtected(req2)) auth().protect();
-  })(req);
+    if (isProtectedRoute(req2)) auth().protect();
+  }, req);
 }
 
 export const config = {

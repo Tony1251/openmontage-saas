@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os, sys
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,13 +8,30 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db import engine
 from app.routers import renders, api_keys, billing, webhooks, health, users
+from app.services.render_worker import run_worker
+
+
+_worker_task: asyncio.Task | None = None
+_worker_stop = asyncio.Event()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _worker_task, _worker_stop
     async with engine.begin() as conn:
         await conn.exec_driver_sql("SELECT 1")
+    if os.environ.get("MOCK_MODE") == "true":
+        _worker_stop = asyncio.Event()
+        _worker_task = asyncio.create_task(run_worker(_worker_stop))
+        print("[openmontage-saas] render worker started (mock)", file=sys.stderr)
     yield
+    if _worker_task is not None:
+        _worker_stop.set()
+        _worker_task.cancel()
+        try:
+            await _worker_task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+            pass
     await engine.dispose()
 
 

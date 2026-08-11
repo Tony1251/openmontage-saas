@@ -1,82 +1,113 @@
 'use client';
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
+import { KeyRound, Shield, Plus } from 'lucide-react';
 import { useAuth } from '@clerk/nextjs';
-import { api } from '@/lib/api';
+import { CreateKeyDialog } from '@/components/api-keys/create-key-dialog';
+import { KeyRow } from '@/components/api-keys/key-row';
+import { RevokeConfirmDialog } from '@/components/api-keys/revoke-confirm-dialog';
+import { useApiKeys, useRevokeApiKey } from '@/lib/hooks/use-api-keys';
 import type { ApiKey } from '@/lib/types';
 
+const isMock = process.env.NEXT_PUBLIC_MOCK_MODE === 'true' || process.env.MOCK_MODE === 'true';
+
 export default function ApiKeysPage() {
-  const { getToken } = useAuth();
-  const qc = useQueryClient();
-  const [newSecret, setNewSecret] = useState<string | null>(null);
+  const auth = isMock ? { getToken: async () => 'sk_test_demo' } : useAuth();
+  const { getToken } = auth;
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['api-keys'],
-    queryFn: async () => {
-      const token = await getToken();
-      api.defaults.headers.common.Authorization = `Bearer ${token}`;
-      const r = await api.get<{ items: ApiKey[] }>('/v1/api-keys');
-      return r.data.items ?? [];
-    },
-  });
+  const [createOpen, setCreateOpen] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<ApiKey | null>(null);
 
-  const create = useMutation({
-    mutationFn: async (label: string) => {
-      const token = await getToken();
-      api.defaults.headers.common.Authorization = `Bearer ${token}`;
-      const r = await api.post<ApiKey & { secret: string }>('/v1/api-keys', { label });
-      return r.data;
-    },
-    onSuccess: (d) => { setNewSecret(d.secret); qc.invalidateQueries({ queryKey: ['api-keys'] }); toast.success('Key created. Copy it now.'); },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const { data: keys, isLoading } = useApiKeys(getToken);
+  const revokeKey = useRevokeApiKey(getToken);
+
+  const handleRevoke = () => {
+    if (!revokeTarget) return;
+    revokeKey.mutate(revokeTarget.id, {
+      onSuccess: () => setRevokeTarget(null),
+    });
+  };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">API Keys</h1>
-      {newSecret && (
-        <Card className="border-yellow-500">
-          <CardHeader><CardTitle>Save this secret now</CardTitle></CardHeader>
-          <CardContent>
-            <code className="block rounded bg-muted p-3 text-sm">{newSecret}</code>
-            <Button className="mt-2" variant="outline" onClick={() => { navigator.clipboard.writeText(newSecret); toast.success('Copied'); }}>Copy</Button>
-          </CardContent>
-        </Card>
-      )}
-      <Card>
-        <CardHeader><CardTitle>Create new key</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); create.mutate(fd.get('label') as string); }} className="flex gap-2">
-            <Input name="label" placeholder="e.g. production-server" required />
-            <Button type="submit" disabled={create.isPending}>Create</Button>
-          </form>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">API Keys</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Manage API keys for programmatic access</p>
+        </div>
+        <CreateKeyDialog getToken={getToken} open={createOpen} onOpenChange={setCreateOpen} />
+      </div>
+
+      {/* Security tip */}
+      <Card className="border-blue-200 bg-blue-50">
+        <CardContent className="flex items-start gap-3 p-4">
+          <Shield className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+          <div>
+            <p className="text-sm font-medium text-blue-900">Security tip</p>
+            <p className="text-xs text-blue-700">
+              Treat API keys like passwords. Store them securely, use environment variables,
+              and rotate keys regularly. Never expose keys in client-side code.
+            </p>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Keys table */}
       <Card>
-        <CardHeader><CardTitle>Existing keys</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Keys</CardTitle>
+        </CardHeader>
         <CardContent>
-          {isLoading ? <p>Loading...</p> :
-           !data || data.length === 0 ? <p className="text-sm text-muted-foreground">No keys yet.</p> :
-           <table className="w-full text-sm">
-             <thead><tr className="border-b text-left"><th className="py-2">Label</th><th>Public key</th><th>Status</th><th>Created</th></tr></thead>
-             <tbody>
-               {data.map((k) => (
-                 <tr key={k.id} className="border-b">
-                   <td className="py-2">{k.label}</td>
-                   <td><code>{k.public_key}</code></td>
-                   <td>{k.status}</td>
-                   <td>{new Date(k.created_at).toLocaleDateString()}</td>
-                 </tr>
-               ))}
-             </tbody>
-           </table>}
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-12 animate-pulse rounded-md bg-muted" />
+              ))}
+            </div>
+          ) : !keys || keys.length === 0 ? (
+            <div className="flex flex-col items-center py-12 text-center">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <KeyRound className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="mb-1 font-medium">No API keys yet</p>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Create your first API key to start integrating with the API.
+              </p>
+              <Button variant="outline" onClick={() => setCreateOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create API key
+              </Button>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-2 font-medium">Label</th>
+                  <th className="py-2 font-medium">Key</th>
+                  <th className="py-2 font-medium">Status</th>
+                  <th className="py-2 font-medium">Last used</th>
+                  <th className="py-2 font-medium">Created</th>
+                  <th className="py-2 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {keys.map((k) => (
+                  <KeyRow key={k.id} apiKey={k} onRevoke={setRevokeTarget} />
+                ))}
+              </tbody>
+            </table>
+          )}
         </CardContent>
       </Card>
+
+      <RevokeConfirmDialog
+        open={!!revokeTarget}
+        onOpenChange={(v) => { if (!v) setRevokeTarget(null); }}
+        keyLabel={revokeTarget?.label || 'Untitled'}
+        onConfirm={handleRevoke}
+        isLoading={revokeKey.isPending}
+      />
     </div>
   );
 }
