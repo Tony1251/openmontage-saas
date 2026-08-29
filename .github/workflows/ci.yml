@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────── API (Python / FastAPI) ───────────────────────────
+  api-lint-and-test:
+    name: API · lint + test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Ruff (lint)
+        run: uv run ruff check .
+
+      - name: Ruff (format check)
+        run: uv run ruff format --check .
+
+      # Tests run on in-memory SQLite with MOCK_MODE — no Postgres / no Ark key
+      # needed (env is injected by pytest-env via pyproject `[tool.pytest.ini_options]`).
+      - name: Pytest
+        run: uv run pytest -q
+
+  # ─────────────────────────── Web (TypeScript / Next.js) ───────────────────────────
+  web-typecheck-lint-build:
+    name: Web · typecheck + lint + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_dummy
+      CLERK_SECRET_KEY: sk_test_dummy
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      # TODO(frontend): land eslint.config.mjs so `next lint` is non-interactive,
+      # then drop `continue-on-error` to make lint a hard gate.
+      - name: ESLint (non-blocking until config lands)
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build (sanity check)
+        run: npm run build
+
+  # ─────────────────────────── Docker Compose validate ───────────────────────────
+  compose-validate:
+    name: docker compose · validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose file
+        run: docker compose config -q
