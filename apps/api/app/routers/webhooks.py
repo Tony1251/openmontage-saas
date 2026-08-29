@@ -1,13 +1,14 @@
 from __future__ import annotations
-from typing import Annotated
-from fastapi import APIRouter, Header, HTTPException, Request, status
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
 
-from app.db import get_db
-from app.models import Render, RenderStatus, Subscription, Plan, Workspace
+from datetime import UTC, datetime
+from typing import Annotated
+
+from fastapi import APIRouter, Header, HTTPException, Request
+from sqlalchemy import select, update
+
 from app.config import settings
+from app.db import get_db
+from app.models import Plan, Render, RenderStatus, Subscription, Workspace
 from app.services.stripe_service import verify_webhook
 
 router = APIRouter(tags=["webhooks"])
@@ -23,8 +24,8 @@ async def stripe_webhook(
     payload = await request.body()
     try:
         event = verify_webhook(payload, stripe_signature)
-    except Exception:
-        raise HTTPException(status_code=400, detail={"error": "invalid_signature"})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "invalid_signature"}) from e
 
     db = await anext(get_db())
 
@@ -38,7 +39,7 @@ async def stripe_webhook(
             stripe_price = data["items"]["data"][0]["price"]["id"]
             plan_type = Plan.pro if stripe_price == settings.stripe_price_pro else Plan.enterprise
             status_str = data["status"]
-            period_end = datetime.fromtimestamp(data["current_period_end"], tz=timezone.utc)
+            period_end = datetime.fromtimestamp(data["current_period_end"], tz=UTC)
             cancel_at_period_end = data.get("cancel_at_period_end", False)
 
             ws_query = await db.execute(select(Workspace).where(Workspace.id == int(workspace_id_str if workspace_id_str else 0)))
@@ -60,7 +61,7 @@ async def stripe_webhook(
                 sub.plan = plan_type
                 sub.current_period_end = period_end
                 sub.cancel_at_period_end = cancel_at_period_end
-                sub.updated_at = datetime.now(timezone.utc)
+                sub.updated_at = datetime.now(UTC)
             else:
                 db.add(Subscription(
                     workspace_id=ws.id,
@@ -84,7 +85,7 @@ async def stripe_webhook(
             sub = sub_query.scalar_one_or_none()
             if sub:
                 sub.status = "canceled"
-                sub.updated_at = datetime.now(timezone.utc)
+                sub.updated_at = datetime.now(UTC)
                 sub.cancel_at_period_end = True
                 ws_query = await db.execute(select(Workspace).where(Workspace.id == sub.workspace_id))
                 ws = ws_query.scalar_one_or_none()
@@ -130,7 +131,7 @@ async def render_complete_webhook(
         else:
             render.status = RenderStatus.succeeded if status_str == "succeeded" else RenderStatus.failed
 
-        render.completed_at = datetime.now(timezone.utc)
+        render.completed_at = datetime.now(UTC)
         await db.commit()
     finally:
         await db.close()

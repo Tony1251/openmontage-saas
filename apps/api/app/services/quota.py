@@ -1,5 +1,7 @@
 from __future__ import annotations
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
+
 from fastapi import HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +12,7 @@ from app.models import QuotaUsage, Workspace
 
 def current_period_start() -> datetime:
     """Returns naive UTC datetime for TIMESTAMP WITHOUT TIME ZONE column."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return datetime(now.year, now.month, 1, tzinfo=None)
 
 

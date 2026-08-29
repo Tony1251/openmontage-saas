@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from typing import Annotated
-from fastapi import APIRouter, Depends, status
+
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +35,7 @@ async def sync_user(
 ) -> SyncUserResponse:
     result = await db.execute(select(User).where(User.clerk_user_id == body.clerk_user_id))
     user = result.scalar_one_or_none()
-    is_new = False
+    _is_new = False  # TODO: unused placeholder — decide if returned flag is needed
 
     if user:
         user.email = body.email

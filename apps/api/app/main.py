@@ -1,16 +1,20 @@
 from __future__ import annotations
-import os, sys
+
+import os
+import sys
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.db import engine
-from app.routers import renders, api_keys, billing, webhooks, health, users
+from app.db import get_engine
+from app.routers import api_keys, billing, health, renders, users, webhooks
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    engine = get_engine()
     async with engine.begin() as conn:
         await conn.exec_driver_sql("SELECT 1")
     yield

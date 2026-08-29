@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_auth, AuthContext
+from app.auth import AuthContext, get_auth
 from app.config import settings
 from app.db import get_db
 from app.schemas.billing import CheckoutRequest, CheckoutResponse, PortalResponse

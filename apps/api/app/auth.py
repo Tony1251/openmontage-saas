@@ -1,14 +1,16 @@
 from __future__ import annotations
+
 import hashlib
 import secrets
 from dataclasses import dataclass
 from typing import Annotated
+
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.models import ApiKey, Workspace, User
+from app.models import ApiKey, User, Workspace
 
 LIVE_PREFIX = "sk_live_"
 TEST_PREFIX = "sk_test_"
@@ -37,24 +39,27 @@ class AuthContext:
 
 # ── MOCK_MODE bypass ──
 import os
+from datetime import UTC
+
 _MOCK_AUTH_CONTEXT: AuthContext | None = None
 
 
 def _get_mock_context() -> AuthContext:
     global _MOCK_AUTH_CONTEXT
     if _MOCK_AUTH_CONTEXT is None:
-        from datetime import datetime, timezone
-        from app.models import Workspace, ApiKey
+        from datetime import datetime
+
+        from app.models import ApiKey, Workspace
         _MOCK_AUTH_CONTEXT = AuthContext(
             workspace=Workspace(
                 id=1, owner_id=1, name="Mock Workspace", slug="mock",
                 plan="free", stripe_customer_id=None, monthly_render_quota=10,
-                created_at=datetime.now(timezone.utc), updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
             ),
             api_key=ApiKey(
                 id=1, workspace_id=1, public_key="sk_test_mock000000000000",
                 key_hash="0" * 64, label="mock-key", status="active",
-                last_used_at=None, created_at=datetime.now(timezone.utc), revoked_at=None,
+                last_used_at=None, created_at=datetime.now(UTC), revoked_at=None,
             ),
             user=None,
         )

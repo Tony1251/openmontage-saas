@@ -1,14 +1,16 @@
 from __future__ import annotations
+
+from datetime import UTC, datetime
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
 
-from app.auth import get_auth, AuthContext, generate_api_key, hash_secret
+from app.auth import AuthContext, generate_api_key, get_auth, hash_secret
 from app.db import get_db
 from app.models import ApiKey, ApiKeyStatus
-from app.schemas.api_keys import CreateApiKeyRequest, ApiKeyResponse, ApiKeyWithSecret
+from app.schemas.api_keys import ApiKeyResponse, ApiKeyWithSecret, CreateApiKeyRequest
 
 router = APIRouter(tags=["api-keys"])
 
@@ -81,5 +83,5 @@ async def revoke_api_key(
     if not api_key:
         raise HTTPException(status_code=404, detail={"error": "not_found", "message": "api key not found"})
     api_key.status = ApiKeyStatus.revoked
-    api_key.revoked_at = datetime.now(timezone.utc)
+    api_key.revoked_at = datetime.now(UTC)
     await db.commit()

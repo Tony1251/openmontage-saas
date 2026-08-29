@@ -24,7 +24,9 @@ dev = [
     "ruff>=0.7.0",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
-    "httpx-mock>=0.32.0",
+    "httpx-mock>=0.2.0",
+    "aiosqlite>=0.22.1",
+    "pytest-env>=1.7.0",
 ]
 
 [tool.ruff]
@@ -33,11 +35,28 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "B", "UP", "N", "SIM"]
-ignore = ["E501"]
+ignore = [
+    "E501",   # line length — formatter handles
+    "B008",   # FastAPI: Depends()/Header() in arg defaults is idiomatic
+    "UP042",  # SQLAlchemy: str-Enum mixin required for .value round-trip
+    "E402",   # auth.py needs mid-file import after MOCK_MODE env check
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+env = [
+    "MOCK_MODE=true",
+    "DATABASE_URL=sqlite+aiosqlite:///:memory:",
+    "MCP_URL=http://localhost:8765/mcp",
+    "MCP_TOKEN=test-token",
+    "STRIPE_SECRET_KEY=stripe_secret_placeholder",
+    "STRIPE_WEBHOOK_SECRET=whsec_placeholder",
+    "STRIPE_PRICE_PRO=price_pro_placeholder",
+    "STRIPE_PRICE_ENTERPRISE=price_ent_placeholder",
+    "API_BASE_URL=http://localhost:8000",
+    "WEB_BASE_URL=http://localhost:3000",
+]
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]

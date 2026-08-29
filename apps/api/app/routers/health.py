@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 from fastapi import APIRouter
 from sqlalchemy import text
 
-from app.db import engine
+from app.db import get_engine
 
 router = APIRouter()
 
@@ -11,7 +12,7 @@ router = APIRouter()
 async def health() -> dict[str, object]:
     db_status = "ok"
     try:
-        async with engine.begin() as conn:
+        async with get_engine().begin() as conn:
             await conn.execute(text("SELECT 1"))
     except Exception:
         db_status = "error"

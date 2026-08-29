@@ -1,17 +1,19 @@
 from __future__ import annotations
-from typing import Annotated
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from sqlalchemy import select, desc
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
 
-from app.auth import get_auth, AuthContext, check_idempotency, record_idempotency
+from datetime import UTC, datetime
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth import AuthContext, check_idempotency, get_auth, record_idempotency
 from app.db import get_db
 from app.models import Render, RenderStatus
 from app.schemas.renders import CreateRenderRequest, RenderResponse
-from app.services.openmontage import get_mcp, MCPClient
-from app.services.quota import check_and_increment_renders
 from app.services.audit import log as audit_log
+from app.services.openmontage import MCPClient, get_mcp
+from app.services.quota import check_and_increment_renders
 
 router = APIRouter(tags=["renders"])
 
@@ -73,7 +75,7 @@ async def create_render(
         action="render.create", resource_type="render", resource_id=str(render.id),
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return {
         "id": render.id,
         "status": render.status.value,

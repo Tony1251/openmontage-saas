@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import httpx
+
 from app.config import settings
 
 
@@ -20,9 +22,9 @@ class MCPClient:
             raise RuntimeError(f"MCP error: {data['error']}")
         return data.get("result", {})
 
-    async def submit_video_render(self, prompt: str, model: str, duration_sec: int, resolution: str, metadata: dict | None = None) -> str:
+    async def submit_video_render(self, prompt: str, model: str, duration_sec: int, resolution: str, extra_metadata: dict | None = None) -> str:
         """Returns ark_task_id."""
-        args = {"prompt": prompt, "model": model, "duration_sec": duration_sec, "resolution": resolution, "metadata": metadata or {}}
+        args = {"prompt": prompt, "model": model, "duration_sec": duration_sec, "resolution": resolution, "metadata": extra_metadata or {}}
         result = await self.call_tool("ark_seedance_video", args)
         return result.get("ark_task_id") or result.get("task_id") or ""
 
