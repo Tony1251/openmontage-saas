@@ -47,7 +47,12 @@ jobs:
         working-directory: apps/web
     env:
       NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_dummy
+      # Format-valid fake publishable key (decodes to "clerk.example.com$"); Clerk rejects
+      # bare "pk_test_dummy" at build. Swap for a GitHub secret for real deploy.
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+      # SECURITY: a real Clerk secret key was previously committed here in plaintext
+      # (now in git history — must be ROTATED). Replace this placeholder with
+      # ${{ secrets.CLERK_SECRET_KEY }} and add the real key as a GitHub secret only.
       CLERK_SECRET_KEY: sk_test_dummy
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
@@ -61,16 +66,15 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+        # --legacy-peer-deps: @clerk/nextjs@6.39.6 peers on next ^15.2.3, but we pin next 15.0.3.
+        # Proper fix: bump next to 15.2.x (also fixes CVE-2025-66478) — see TODO below.
+        run: npm ci --no-audit --no-fund --legacy-peer-deps || npm install --no-audit --no-fund --legacy-peer-deps
 
       - name: TypeScript typecheck
         run: npm run typecheck
 
-      # TODO(frontend): land eslint.config.mjs so `next lint` is non-interactive,
-      # then drop `continue-on-error` to make lint a hard gate.
-      - name: ESLint (non-blocking until config lands)
+      - name: ESLint
         run: npm run lint
-        continue-on-error: true
 
       - name: Build (sanity check)
         run: npm run build
