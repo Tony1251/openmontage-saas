@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { CreditBalance } from '@/components/credit-balance';
 import Link from 'next/link';
 
 const isMock = process.env.MOCK_MODE === 'true';
@@ -20,8 +21,8 @@ export default async function DashboardPage() {
       <h1 className="text-3xl font-bold">Overview</h1>
       <div className="grid gap-6 sm:grid-cols-3">
         <Card>
-          <CardHeader><CardTitle>Quota this month</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">0 / 10</div><p className="text-sm text-muted-foreground">Free plan</p></CardContent>
+          <CardHeader><CardTitle>Credit balance</CardTitle></CardHeader>
+          <CardContent><CreditBalance /></CardContent>
         </Card>
         <Card>
           <CardHeader><CardTitle>Recent renders</CardTitle></CardHeader>
