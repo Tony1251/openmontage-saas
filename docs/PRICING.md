@@ -69,6 +69,12 @@ class CreditTransaction(Base):
 2. **扣减 + 创建 render 同事务**:`usage` 事务(负 `amount_units`)+ `Render` 行原子提交;失败回滚两者。
 3. **submit 失败回冲**:provider 抛 503 `video_unavailable` → 落 `refund` 事务(正 `amount_units`,复用同 `idempotency_key`),余额回冲,render 置 `failed`。
 
+### 5.1 余额 API 字段(前端消费端契约)
+
+- workspace 余额字段统一命名 **`credits_balance_units`**(整数,非负),在 `GET /v1/workspace`(及任何含余额的响应)返回。
+- 402 body:`{ "code": "insufficient_credits", "credits_required": <int>, "credits_available": <int> }`,两者均为 unit 整数;`credits_available` ≡ 当前 `credits_balance_units`。
+- 前端只读整数 unit,不做浮点换算;`failed` 态须 refetch `credits_balance_units`(回冲后余额会变)。
+
 ## 6. 待 @user 决策(阻塞项)
 
 1. **开通 `doubao-seedance-1-0-pro-fast`?**(定价 COGS 锚点,见 §3)
