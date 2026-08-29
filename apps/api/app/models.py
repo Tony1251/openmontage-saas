@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    DateTime,
     Enum,
     ForeignKey,
     Index,
@@ -66,9 +67,11 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
     owned_workspaces: Mapped[list[Workspace]] = relationship(
@@ -99,9 +102,11 @@ class Workspace(Base):
     credits_balance_units: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("0")
     )
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
     __table_args__ = (Index("workspaces_owner_idx", "owner_id"),)
@@ -146,7 +151,9 @@ class WorkspaceMember(Base):
         Integer, ForeignKey("users.id", ondelete="cascade"), nullable=False
     )
     role: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'member'"))
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
     __table_args__ = (UniqueConstraint("workspace_id", "user_id", name="workspace_members_unique"),)
 
@@ -170,9 +177,11 @@ class ApiKey(Base):
     status: Mapped[ApiKeyStatus] = mapped_column(
         Enum(ApiKeyStatus, name="api_key_status"), nullable=False, server_default=text("'active'")
     )
-    last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
-    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (Index("api_keys_workspace_idx", "workspace_id"),)
 
@@ -214,8 +223,10 @@ class Render(Base):
     extra_metadata: Mapped[dict[str, Any] | None] = mapped_column(
         JSON, name="extra_metadata", nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
-    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index("renders_workspace_status_idx", "workspace_id", "status"),
@@ -255,7 +266,9 @@ class CreditTransaction(Base):
         Integer, ForeignKey("renders.id", ondelete="set null"), nullable=True
     )
     idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
     __table_args__ = (
         UniqueConstraint("idempotency_key", "type", name="uq_credit_idem_type"),
@@ -276,10 +289,12 @@ class QuotaUsage(Base):
     workspace_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("workspaces.id", ondelete="cascade"), nullable=False
     )
-    period_start: Mapped[datetime] = mapped_column(nullable=False)
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     renders_used: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     api_calls_used: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
-    updated_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
     __table_args__ = (UniqueConstraint("workspace_id", "period_start", name="quota_usage_unique"),)
 
@@ -300,13 +315,15 @@ class Subscription(Base):
     stripe_price_id: Mapped[str] = mapped_column(String(64), nullable=False)
     plan: Mapped[Plan] = mapped_column(Enum(Plan, name="plan"), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    current_period_end: Mapped[datetime] = mapped_column(nullable=False)
+    current_period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     cancel_at_period_end: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
     )
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
     workspace: Mapped[Workspace] = relationship("Workspace", back_populates="subscription")
@@ -328,7 +345,9 @@ class WebhookEndpoint(Base):
         JSON, nullable=False, default=lambda: ["render.succeeded", "render.failed"]
     )
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
     workspace: Mapped[Workspace] = relationship("Workspace", back_populates="webhook_endpoints")
 
@@ -354,6 +373,8 @@ class AuditLog(Base):
     extra_metadata: Mapped[dict[str, Any] | None] = mapped_column(
         JSON, name="extra_metadata", nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
     __table_args__ = (Index("audit_workspace_created_idx", "workspace_id", "created_at"),)
