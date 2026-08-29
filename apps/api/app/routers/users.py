@@ -8,9 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.models import User, Workspace, WorkspaceMember
+from app.models import CreditTransaction, CreditTxnType, User, Workspace, WorkspaceMember
 
 router = APIRouter(tags=["users"])
+
+FREE_SIGNUP_CREDITS = 40  # docs/PRICING.md §2
 
 
 class SyncUserRequest(BaseModel):
@@ -76,10 +78,20 @@ async def sync_user(
             name=f"{body.name or body.email.split('@')[0]}'s Workspace",
             slug=slug,
             plan="free",
-            monthly_render_quota=10,
+            credits_balance_units=FREE_SIGNUP_CREDITS,
         )
         db.add(workspace)
         await db.flush()
+
+        # Free tier signup grant (PRICING.md §2: 40 units on registration).
+        db.add(
+            CreditTransaction(
+                workspace_id=workspace.id,
+                amount_units=FREE_SIGNUP_CREDITS,
+                type=CreditTxnType.grant,
+                idempotency_key=f"signup-{user.id}",
+            )
+        )
 
         member = WorkspaceMember(
             workspace_id=workspace.id,

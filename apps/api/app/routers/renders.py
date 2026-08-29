@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -14,7 +15,13 @@ from app.models import Render, RenderStatus
 from app.schemas.renders import CreateRenderRequest, RenderResponse
 from app.schemas.video import TaskStatus, VideoGenRequest
 from app.services.audit import log as audit_log
-from app.services.quota import check_and_increment_renders
+from app.services.credits import (
+    InsufficientCreditsError,
+    debit_units,
+    get_balance,
+    refund_units,
+    units_for,
+)
 from app.services.video_provider import VideoProvider, get_video_provider
 
 router = APIRouter(tags=["renders"])
@@ -38,6 +45,27 @@ def _to_video_gen_request(body: CreateRenderRequest) -> VideoGenRequest:
     )
 
 
+def _created_response(render: Render) -> dict:
+    now = datetime.now(UTC)
+    return {
+        "id": render.id,
+        "status": render.status.value,
+        "created_at": render.created_at.isoformat() if render.created_at else now.isoformat(),
+        "estimated_completion_at": None,
+    }
+
+
+def _insufficient_credits_exc(required: int, available: int) -> HTTPException:
+    return HTTPException(
+        status_code=402,
+        detail={
+            "code": "insufficient_credits",
+            "credits_required": required,
+            "credits_available": available,
+        },
+    )
+
+
 @router.post("/renders", status_code=201)
 async def create_render(
     body: CreateRenderRequest,
@@ -46,46 +74,67 @@ async def create_render(
     provider: Annotated[VideoProvider, Depends(get_video_provider)],
     idempotency_key: Annotated[str | None, Header()] = None,
 ) -> dict:
+    # Idempotent replay: return the previously created render unchanged.
     existing_id = check_idempotency(idempotency_key)
     if existing_id is not None:
         result = await db.execute(select(Render).where(Render.id == existing_id))
         existing = result.scalar_one_or_none()
         if existing:
-            return {
-                "id": existing.id,
-                "status": existing.status.value,
-                "created_at": existing.created_at.isoformat(),
-                "estimated_completion_at": None,
-            }
-
-    await check_and_increment_renders(db, auth.workspace)
+            return _created_response(existing)
 
     req = _to_video_gen_request(body)
+    units = units_for(body.resolution, body.duration_sec)
+
+    # Billing idempotency key: the request Idempotency-Key if provided, else a
+    # fresh unique token. A render's usage debit and (possible) refund share it.
+    billing_key = idempotency_key or secrets.token_hex(16)
+
+    # 1. Pre-check balance → 402 before ever touching the provider (Ark is never
+    #    called when the workspace can't afford the render).
+    balance = await get_balance(db, auth.workspace.id)
+    if balance < units:
+        raise _insufficient_credits_exc(units, balance)
+
+    # 2. Create render + debit atomically (same DB transaction).
+    render = Render(
+        workspace_id=auth.workspace.id,
+        api_key_id=auth.api_key.id,
+        prompt=body.prompt,
+        model=body.model,
+        duration_sec=body.duration_sec,
+        resolution=body.resolution,
+        status=RenderStatus.queued,
+        credits_consumed_units=units,
+        extra_metadata=body.extra_metadata,
+        # cost_cents settled from units × plan price — blocked on PRICING.md §3.
+    )
+    db.add(render)
+    await db.flush()  # assign render.id for the ledger ref_render_id
+    try:
+        await debit_units(db, auth.workspace.id, units, billing_key, ref_render_id=render.id)
+        await db.commit()
+    except InsufficientCreditsError as exc:
+        await db.rollback()
+        raise _insufficient_credits_exc(exc.required, exc.available) from exc
+    await db.refresh(render)
+
+    # 3. Submit to the provider (after commit — never hold the txn open).
     try:
         ark_task_id = await provider.submit(req)
     except (RuntimeError, httpx.HTTPError) as exc:
-        # Symmetric escape hatch to vision's 503 `vision_unavailable`.
+        # 3b. Submit failed → refund (net=0) + mark failed, then surface 503.
+        await refund_units(db, auth.workspace.id, units, billing_key, ref_render_id=render.id)
+        render.status = RenderStatus.failed
+        render.error = str(exc)
+        await db.commit()
         raise HTTPException(
             status_code=503,
             detail={"error": "video_unavailable", "message": str(exc)},
         ) from exc
 
-    status_val = RenderStatus.running if ark_task_id else RenderStatus.queued
-
-    render = Render(
-        workspace_id=auth.workspace.id,
-        api_key_id=auth.api_key.id,
-        ark_task_id=ark_task_id or None,
-        prompt=body.prompt,
-        model=body.model,
-        duration_sec=body.duration_sec,
-        resolution=body.resolution,
-        status=status_val,
-        extra_metadata=body.extra_metadata,
-    )
-    db.add(render)
+    render.ark_task_id = ark_task_id or None
+    render.status = RenderStatus.running if ark_task_id else RenderStatus.queued
     await db.commit()
-    await db.refresh(render)
 
     record_idempotency(idempotency_key, render.id)
 
@@ -98,13 +147,7 @@ async def create_render(
         resource_id=str(render.id),
     )
 
-    now = datetime.now(UTC)
-    return {
-        "id": render.id,
-        "status": render.status.value,
-        "created_at": render.created_at.isoformat() if render.created_at else now.isoformat(),
-        "estimated_completion_at": None,
-    }
+    return _created_response(render)
 
 
 @router.get("/renders/{render_id}")
@@ -146,6 +189,10 @@ async def get_render(
         except (RuntimeError, httpx.HTTPError):
             pass  # transient — return current persisted state
 
+    return _render_response(render)
+
+
+def _render_response(render: Render) -> RenderResponse:
     return RenderResponse(
         id=render.id,
         workspace_id=render.workspace_id,
@@ -158,6 +205,7 @@ async def get_render(
         video_url=render.video_url,
         error=render.error,
         cost_cents=render.cost_cents,
+        credits_consumed_units=render.credits_consumed_units,
         extra_metadata=render.extra_metadata,
         created_at=render.created_at.isoformat() if render.created_at else "",
         completed_at=render.completed_at.isoformat() if render.completed_at else None,
@@ -185,25 +233,7 @@ async def list_renders(
     renders_list = rows[:limit]
 
     return {
-        "data": [
-            RenderResponse(
-                id=r.id,
-                workspace_id=r.workspace_id,
-                ark_task_id=r.ark_task_id,
-                prompt=r.prompt,
-                model=r.model,
-                duration_sec=r.duration_sec,
-                resolution=r.resolution,
-                status=r.status.value,
-                video_url=r.video_url,
-                error=r.error,
-                cost_cents=r.cost_cents,
-                extra_metadata=r.extra_metadata,
-                created_at=r.created_at.isoformat() if r.created_at else "",
-                completed_at=r.completed_at.isoformat() if r.completed_at else None,
-            )
-            for r in renders_list
-        ],
+        "data": [_render_response(r) for r in renders_list],
         "has_more": has_more,
         "next_cursor": renders_list[-1].id if has_more else None,
     }

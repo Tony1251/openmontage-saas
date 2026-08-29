@@ -30,6 +30,7 @@ class Base(DeclarativeBase):
 class Plan(str, PyEnum):
     free = "free"
     pro = "pro"
+    business = "business"
     enterprise = "enterprise"
 
 
@@ -44,6 +45,14 @@ class RenderStatus(str, PyEnum):
 class ApiKeyStatus(str, PyEnum):
     active = "active"
     revoked = "revoked"
+
+
+class CreditTxnType(str, PyEnum):
+    grant = "grant"
+    subscription = "subscription"
+    usage = "usage"
+    refund = "refund"
+    admin_adjust = "admin_adjust"
 
 
 # ── Users (Clerk mirror) ──
@@ -87,6 +96,9 @@ class Workspace(Base):
     monthly_render_quota: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("10")
     )
+    credits_balance_units: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(), onupdate=func.now()
@@ -108,6 +120,9 @@ class Workspace(Base):
     )
     quota_usage: Mapped[list[QuotaUsage]] = relationship(
         "QuotaUsage", back_populates="workspace", cascade="all, delete-orphan"
+    )
+    credit_transactions: Mapped[list[CreditTransaction]] = relationship(
+        "CreditTransaction", back_populates="workspace", cascade="all, delete-orphan"
     )
     subscription: Mapped[Subscription | None] = relationship(
         "Subscription", back_populates="workspace", uselist=False, cascade="all, delete-orphan"
@@ -193,6 +208,9 @@ class Render(Base):
     video_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     cost_cents: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    credits_consumed_units: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
     extra_metadata: Mapped[dict[str, Any] | None] = mapped_column(
         JSON, name="extra_metadata", nullable=True
     )
@@ -206,6 +224,46 @@ class Render(Base):
 
     workspace: Mapped[Workspace] = relationship("Workspace", back_populates="renders")
     api_key: Mapped[ApiKey | None] = relationship("ApiKey", back_populates="renders")
+
+
+# ── Credit ledger (docs/PRICING.md §4) ──
+
+
+class CreditTransaction(Base):
+    """Append-only ledger of signed credit movements.
+
+    ``amount_units`` is signed (+grant/subscription/refund, -usage). The
+    denormalised ``Workspace.credits_balance_units`` is maintained inside the
+    same DB transaction as each row, so balance always equals the running sum.
+
+    Idempotency is enforced by the unique ``(idempotency_key, type)`` pair: a
+    usage debit and its matching refund share one ``idempotency_key`` but differ
+    by ``type``, guaranteeing each lands at most once (net = 0 on retries).
+    """
+
+    __tablename__ = "credit_transactions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("workspaces.id", ondelete="cascade"), nullable=False
+    )
+    amount_units: Mapped[int] = mapped_column(Integer, nullable=False)
+    type: Mapped[CreditTxnType] = mapped_column(
+        Enum(CreditTxnType, name="credit_txn_type"), nullable=False
+    )
+    ref_render_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("renders.id", ondelete="set null"), nullable=True
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", "type", name="uq_credit_idem_type"),
+        Index("credit_txns_workspace_idx", "workspace_id"),
+    )
+
+    workspace: Mapped[Workspace] = relationship("Workspace", back_populates="credit_transactions")
+    render: Mapped[Render | None] = relationship("Render")
 
 
 # ── Quota Usage (monthly aggregates) ──

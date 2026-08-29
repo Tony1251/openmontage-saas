@@ -35,7 +35,7 @@ async def test_create_render_persists_to_db(client, db_session):
 
     resp = await client.post(
         "/v1/renders",
-        json={"prompt": "cinematic drone shot", "duration_sec": 10, "resolution": "1080p"},
+        json={"prompt": "cinematic drone shot", "duration_sec": 5, "resolution": "720p"},
     )
     assert resp.status_code == 201, resp.text
     render_id = resp.json()["id"]

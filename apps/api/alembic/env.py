@@ -15,6 +15,7 @@ from app.models import (  # noqa: F401
     ApiKey,
     AuditLog,
     Base,
+    CreditTransaction,
     QuotaUsage,
     Render,
     Subscription,

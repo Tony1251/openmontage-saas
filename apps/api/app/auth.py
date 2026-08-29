@@ -60,6 +60,7 @@ def _get_mock_context() -> AuthContext:
                 plan="free",
                 stripe_customer_id=None,
                 monthly_render_quota=10,
+                credits_balance_units=40,
                 created_at=datetime.now(UTC),
                 updated_at=datetime.now(UTC),
             ),

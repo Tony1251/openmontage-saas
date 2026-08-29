@@ -15,6 +15,7 @@ import os
 os.environ.setdefault("MOCK_MODE", "true")
 
 import pytest
+import sqlalchemy as sa
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -27,10 +28,19 @@ from app.services.video_provider import get_video_provider
 
 @pytest.fixture
 async def db_session():
-    """Fresh in-memory SQLite schema per test."""
+    """Fresh in-memory SQLite schema per test, seeded with the MOCK_MODE workspace."""
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Seed a workspace row (id=1) matching the MOCK_MODE synthetic auth
+        # context so the credit-ledger debit/refund have a real row to update.
+        await conn.execute(
+            sa.text(
+                "INSERT INTO workspaces "
+                "(id, owner_id, name, slug, plan, monthly_render_quota, credits_balance_units) "
+                "VALUES (1, 0, 'Mock Workspace', 'mock', 'free', 10, 40)"
+            )
+        )
     factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with factory() as session:
         yield session
