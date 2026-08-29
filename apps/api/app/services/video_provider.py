@@ -98,7 +98,9 @@ class ArkSeedanceProvider:
     are caught by the router, which maps them to its own escape hatch.
     """
 
-    def __init__(self, model: str | None = None, transport: httpx.AsyncBaseTransport | None = None) -> None:
+    def __init__(
+        self, model: str | None = None, transport: httpx.AsyncBaseTransport | None = None
+    ) -> None:
         self._model = model or settings.ark_video_model
         self._client = httpx.AsyncClient(
             headers={

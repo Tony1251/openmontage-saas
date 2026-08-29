@@ -30,7 +30,10 @@ app = FastAPI(
 )
 
 if os.environ.get("MOCK_MODE") == "true":
-    print("[openmontage-saas] ⚠ MOCK_MODE=true — auth + Stripe bypassed for local dev", file=sys.stderr)
+    print(
+        "[openmontage-saas] ⚠ MOCK_MODE=true — auth + Stripe bypassed for local dev",
+        file=sys.stderr,
+    )
 
 app.add_middleware(
     CORSMiddleware,

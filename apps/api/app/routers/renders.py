@@ -90,8 +90,12 @@ async def create_render(
     record_idempotency(idempotency_key, render.id)
 
     await audit_log(
-        db, workspace_id=auth.workspace.id, api_key_id=auth.api_key.id,
-        action="render.create", resource_type="render", resource_id=str(render.id),
+        db,
+        workspace_id=auth.workspace.id,
+        api_key_id=auth.api_key.id,
+        action="render.create",
+        resource_type="render",
+        resource_id=str(render.id),
     )
 
     now = datetime.now(UTC)
@@ -115,7 +119,9 @@ async def get_render(
     )
     render = result.scalar_one_or_none()
     if not render:
-        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "render not found"})
+        raise HTTPException(
+            status_code=404, detail={"error": "not_found", "message": "render not found"}
+        )
 
     # Poll active tasks on read: only resolve `video_url` once the provider
     # reports succeeded; transient poll failures leave the row untouched.

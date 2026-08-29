@@ -1,4 +1,5 @@
 """Vision analysis endpoint tests (stubbed ArkVisionClient)."""
+
 from __future__ import annotations
 
 import pytest
@@ -18,7 +19,9 @@ async def test_analyze_vision_returns_result(client):
 
 @pytest.mark.asyncio
 async def test_analyze_vision_missing_prompt_422(client):
-    resp = await client.post("/v1/vision/analyze", json={"image_url": "https://example.com/img.jpg"})
+    resp = await client.post(
+        "/v1/vision/analyze", json={"image_url": "https://example.com/img.jpg"}
+    )
     assert resp.status_code == 422
 
 

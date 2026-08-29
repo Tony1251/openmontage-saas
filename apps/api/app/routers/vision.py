@@ -18,7 +18,9 @@ async def analyze_vision(
     vision: Annotated[ArkVisionClient, Depends(get_ark_vision)],
 ) -> VisionAnalyzeResponse:
     try:
-        result = await vision.analyze(image_url=body.image_url, prompt=body.prompt, model=body.model)
+        result = await vision.analyze(
+            image_url=body.image_url, prompt=body.prompt, model=body.model
+        )
     except RuntimeError as exc:
         raise HTTPException(
             status_code=503,

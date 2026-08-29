@@ -34,7 +34,9 @@ async def stripe_webhook(
         data = event.get("data", {}).get("object", {})
 
         if event_type in ("customer.subscription.created", "customer.subscription.updated"):
-            workspace_id_str = data.get("metadata", {}).get("workspace_id") or data.get("client_reference_id", "")
+            workspace_id_str = data.get("metadata", {}).get("workspace_id") or data.get(
+                "client_reference_id", ""
+            )
             stripe_id = data["id"]
             stripe_price = data["items"]["data"][0]["price"]["id"]
             plan_type = Plan.pro if stripe_price == settings.stripe_price_pro else Plan.enterprise
@@ -42,7 +44,11 @@ async def stripe_webhook(
             period_end = datetime.fromtimestamp(data["current_period_end"], tz=UTC)
             cancel_at_period_end = data.get("cancel_at_period_end", False)
 
-            ws_query = await db.execute(select(Workspace).where(Workspace.id == int(workspace_id_str if workspace_id_str else 0)))
+            ws_query = await db.execute(
+                select(Workspace).where(
+                    Workspace.id == int(workspace_id_str if workspace_id_str else 0)
+                )
+            )
             ws = ws_query.scalar_one_or_none()
             if not ws:
                 return {"received": True, "note": "workspace not found"}
@@ -50,10 +56,14 @@ async def stripe_webhook(
             customer_id = data.get("customer")
             if customer_id and not ws.stripe_customer_id:
                 await db.execute(
-                    update(Workspace).where(Workspace.id == ws.id).values(stripe_customer_id=customer_id)
+                    update(Workspace)
+                    .where(Workspace.id == ws.id)
+                    .values(stripe_customer_id=customer_id)
                 )
 
-            sub_query = await db.execute(select(Subscription).where(Subscription.stripe_subscription_id == stripe_id))
+            sub_query = await db.execute(
+                select(Subscription).where(Subscription.stripe_subscription_id == stripe_id)
+            )
             sub = sub_query.scalar_one_or_none()
             if sub:
                 sub.status = status_str
@@ -63,15 +73,17 @@ async def stripe_webhook(
                 sub.cancel_at_period_end = cancel_at_period_end
                 sub.updated_at = datetime.now(UTC)
             else:
-                db.add(Subscription(
-                    workspace_id=ws.id,
-                    stripe_subscription_id=stripe_id,
-                    stripe_price_id=stripe_price,
-                    plan=plan_type,
-                    status=status_str,
-                    current_period_end=period_end,
-                    cancel_at_period_end=cancel_at_period_end,
-                ))
+                db.add(
+                    Subscription(
+                        workspace_id=ws.id,
+                        stripe_subscription_id=stripe_id,
+                        stripe_price_id=stripe_price,
+                        plan=plan_type,
+                        status=status_str,
+                        current_period_end=period_end,
+                        cancel_at_period_end=cancel_at_period_end,
+                    )
+                )
 
             ws.plan = plan_type
             if plan_type == Plan.pro:
@@ -81,13 +93,17 @@ async def stripe_webhook(
 
         elif event_type == "customer.subscription.deleted":
             stripe_id = data["id"]
-            sub_query = await db.execute(select(Subscription).where(Subscription.stripe_subscription_id == stripe_id))
+            sub_query = await db.execute(
+                select(Subscription).where(Subscription.stripe_subscription_id == stripe_id)
+            )
             sub = sub_query.scalar_one_or_none()
             if sub:
                 sub.status = "canceled"
                 sub.updated_at = datetime.now(UTC)
                 sub.cancel_at_period_end = True
-                ws_query = await db.execute(select(Workspace).where(Workspace.id == sub.workspace_id))
+                ws_query = await db.execute(
+                    select(Workspace).where(Workspace.id == sub.workspace_id)
+                )
                 ws = ws_query.scalar_one_or_none()
                 if ws:
                     ws.plan = Plan.free
@@ -129,7 +145,9 @@ async def render_complete_webhook(
             render.status = RenderStatus.failed
             render.error = body.get("error")
         else:
-            render.status = RenderStatus.succeeded if status_str == "succeeded" else RenderStatus.failed
+            render.status = (
+                RenderStatus.succeeded if status_str == "succeeded" else RenderStatus.failed
+            )
 
         render.completed_at = datetime.now(UTC)
         await db.commit()

@@ -50,16 +50,29 @@ def _get_mock_context() -> AuthContext:
         from datetime import datetime
 
         from app.models import ApiKey, Workspace
+
         _MOCK_AUTH_CONTEXT = AuthContext(
             workspace=Workspace(
-                id=1, owner_id=1, name="Mock Workspace", slug="mock",
-                plan="free", stripe_customer_id=None, monthly_render_quota=10,
-                created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
+                id=1,
+                owner_id=1,
+                name="Mock Workspace",
+                slug="mock",
+                plan="free",
+                stripe_customer_id=None,
+                monthly_render_quota=10,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             ),
             api_key=ApiKey(
-                id=1, workspace_id=1, public_key="sk_test_mock000000000000",
-                key_hash="0" * 64, label="mock-key", status="active",
-                last_used_at=None, created_at=datetime.now(UTC), revoked_at=None,
+                id=1,
+                workspace_id=1,
+                public_key="sk_test_mock000000000000",
+                key_hash="0" * 64,
+                label="mock-key",
+                status="active",
+                last_used_at=None,
+                created_at=datetime.now(UTC),
+                revoked_at=None,
             ),
             user=None,
         )
@@ -73,11 +86,17 @@ async def get_auth(
     if os.environ.get("MOCK_MODE") == "true":
         return _get_mock_context()
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "unauthorized", "message": "missing Bearer token"})
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "unauthorized", "message": "missing Bearer token"},
+        )
     raw = authorization.removeprefix("Bearer ").strip()
     if not (raw.startswith(LIVE_PREFIX) or raw.startswith(TEST_PREFIX)):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "unauthorized", "message": "invalid key format"})
-    secret = raw[len(LIVE_PREFIX):] if raw.startswith(LIVE_PREFIX) else raw[len(TEST_PREFIX):]
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "unauthorized", "message": "invalid key format"},
+        )
+    secret = raw[len(LIVE_PREFIX) :] if raw.startswith(LIVE_PREFIX) else raw[len(TEST_PREFIX) :]
     key_hash = hash_secret(secret)
     result = await db.execute(
         select(ApiKey, Workspace)
@@ -86,7 +105,10 @@ async def get_auth(
     )
     row = result.first()
     if not row:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "unauthorized", "message": "invalid api key"})
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "unauthorized", "message": "invalid api key"},
+        )
     api_key, workspace = row
     return AuthContext(workspace=workspace, api_key=api_key, user=None)
 
@@ -96,6 +118,7 @@ def check_idempotency(key: str | None) -> int | None:
     if not key:
         return None
     import time
+
     now = time.time()
     expired = [k for k, (_, exp) in IDEMPOTENCY_CACHE.items() if exp < now]
     for k in expired:
@@ -110,4 +133,5 @@ def record_idempotency(key: str | None, render_id: int) -> None:
     if not key:
         return
     import time
+
     IDEMPOTENCY_CACHE[key] = (render_id, time.time() + 86400)

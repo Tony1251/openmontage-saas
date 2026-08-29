@@ -28,6 +28,7 @@ from app.services.video_provider import (
 
 # ── 1. Pydantic validation boundaries ─────────────────────────────
 
+
 def test_video_gen_request_defaults():
     req = VideoGenRequest(prompt="hello")
     assert req.width == 1280
@@ -40,7 +41,7 @@ def test_video_gen_request_defaults():
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"prompt": ""},                 # empty prompt
+        {"prompt": ""},  # empty prompt
         {"prompt": "x", "duration": 0},
         {"prompt": "x", "duration": 31},
         {"prompt": "x", "width": 63},
@@ -63,6 +64,7 @@ def test_resolution_and_ratio_mapping():
 
 
 # ── 2. ArkSeedanceProvider submit / poll (mocked transport) ────────
+
 
 def _mock_transport(handler):
     return httpx.MockTransport(handler)
@@ -93,7 +95,9 @@ async def test_ark_submit_returns_task_id(monkeypatch):
 @pytest.mark.asyncio
 async def test_ark_submit_missing_key_raises_runtime(monkeypatch):
     monkeypatch.setattr("app.services.video_provider.settings.ark_api_key", "")
-    provider = ArkSeedanceProvider(transport=_mock_transport(lambda _: httpx.Response(200, json={})))
+    provider = ArkSeedanceProvider(
+        transport=_mock_transport(lambda _: httpx.Response(200, json={}))
+    )
     with pytest.raises(RuntimeError, match="ARK_API_KEY not configured"):
         await provider.submit(VideoGenRequest(prompt="x"))
     await provider.close()
@@ -139,7 +143,11 @@ async def test_ark_poll_failed_extracts_error(monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
-            json={"id": "cgt-test-123", "status": "failed", "error": {"message": "rejected prompt"}},
+            json={
+                "id": "cgt-test-123",
+                "status": "failed",
+                "error": {"message": "rejected prompt"},
+            },
         )
 
     provider = ArkSeedanceProvider(transport=_mock_transport(handler))
@@ -163,6 +171,7 @@ async def test_ark_poll_unrecognised_status_defaults_pending(monkeypatch):
 
 
 # ── 3. Router integration (fake provider) ─────────────────────────
+
 
 class _FakeProvider:
     """Stateful fake: submit → running → (optional) succeeded."""
@@ -201,7 +210,10 @@ async def test_router_submit_then_poll_to_succeeded(client, db_session):
     fake = _FakeProvider()
     app.dependency_overrides[get_video_provider] = lambda: fake
     try:
-        create = await client.post("/v1/renders", json={"prompt": "ultraman vs monster", "duration_sec": 5, "resolution": "720p"})
+        create = await client.post(
+            "/v1/renders",
+            json={"prompt": "ultraman vs monster", "duration_sec": 5, "resolution": "720p"},
+        )
         assert create.status_code == 201, create.text
         rid = create.json()["id"]
         assert fake.submitted.prompt == "ultraman vs monster"
@@ -230,7 +242,9 @@ async def test_router_poll_to_failed(client, db_session):
 
     app.dependency_overrides[get_video_provider] = lambda: _FakeProvider(fail=True)
     try:
-        create = await client.post("/v1/renders", json={"prompt": "doomed", "duration_sec": 5, "resolution": "720p"})
+        create = await client.post(
+            "/v1/renders", json={"prompt": "doomed", "duration_sec": 5, "resolution": "720p"}
+        )
         rid = create.json()["id"]
         got = await client.get(f"/v1/renders/{rid}")
         assert got.json()["status"] == "failed"
@@ -254,7 +268,9 @@ async def test_router_503_video_unavailable(client, db_session):
 
     app.dependency_overrides[get_video_provider] = lambda: _BoomProvider()
     try:
-        resp = await client.post("/v1/renders", json={"prompt": "x", "duration_sec": 5, "resolution": "720p"})
+        resp = await client.post(
+            "/v1/renders", json={"prompt": "x", "duration_sec": 5, "resolution": "720p"}
+        )
         assert resp.status_code == 503, resp.text
         assert resp.json()["detail"]["error"] == "video_unavailable"
     finally:

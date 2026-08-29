@@ -40,7 +40,9 @@ async def check_and_increment_renders(db: AsyncSession, workspace: Workspace) ->
     new_count = result.scalar_one_or_none()
     if new_count is None:
         existing = await db.execute(
-            select(QuotaUsage).where(QuotaUsage.workspace_id == workspace.id, QuotaUsage.period_start == period)
+            select(QuotaUsage).where(
+                QuotaUsage.workspace_id == workspace.id, QuotaUsage.period_start == period
+            )
         )
         if not existing.scalar_one_or_none():
             db.add(QuotaUsage(workspace_id=workspace.id, period_start=period, renders_used=1))

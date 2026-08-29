@@ -37,7 +37,10 @@ async def billing_portal(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> PortalResponse:
     if not auth.workspace.stripe_customer_id:
-        raise HTTPException(status_code=400, detail={"error": "no_subscription", "message": "no active subscription found"})
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "no_subscription", "message": "no active subscription found"},
+        )
     return_url = f"{settings.web_base_url}/dashboard/billing"
     url = create_portal_session(
         customer_id=auth.workspace.stripe_customer_id,

@@ -47,10 +47,19 @@ async def sync_user(
         await db.refresh(user)
 
         ws_result = await db.execute(
-            select(Workspace).where(Workspace.owner_id == user.id).order_by(Workspace.created_at.asc()).limit(1)
+            select(Workspace)
+            .where(Workspace.owner_id == user.id)
+            .order_by(Workspace.created_at.asc())
+            .limit(1)
         )
         ws = ws_result.scalar_one_or_none()
-        return SyncUserResponse(id=user.id, clerk_user_id=user.clerk_user_id, email=user.email, workspace_id=ws.id if ws else None, is_new=False)
+        return SyncUserResponse(
+            id=user.id,
+            clerk_user_id=user.clerk_user_id,
+            email=user.email,
+            workspace_id=ws.id if ws else None,
+            is_new=False,
+        )
     else:
         user = User(
             clerk_user_id=body.clerk_user_id,
