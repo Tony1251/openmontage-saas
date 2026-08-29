@@ -11,12 +11,15 @@ Verifies against real SQLite + MOCK_MODE auth:
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 import sqlalchemy as sa
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CreditTransaction, CreditTxnType, Render
-from app.services.credits import units_for
+from app.services.credits import InsufficientCreditsError, debit_units, units_for
 
 # ── units_for mapping ─────────────────────────────────────────────
 
@@ -172,3 +175,63 @@ async def test_submit_failure_refunds_and_marks_failed(client, db_session):
         await db_session.execute(select(Render).order_by(Render.id.desc()).limit(1))
     ).scalar_one()
     assert render.status.value == "failed"
+
+
+# ── concurrency: no oversell on parallel debits (§7) ──────────────
+
+
+async def _debit_in_session(engine, workspace_id, units, key):
+    """Run debit_units in its own session (each caller gets an isolated txn)."""
+    async with AsyncSession(engine) as session:
+        try:
+            await debit_units(session, workspace_id, units, key)
+            await session.commit()
+            return "ok"
+        except InsufficientCreditsError as exc:
+            await session.rollback()
+            return ("insufficient", exc.required, exc.available)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_debits_never_oversell(db_session):
+    """§7: two parallel debits on the same workspace must not drive the
+    balance negative — exactly one wins, one is rejected as insufficient."""
+    engine = db_session.bind  # AsyncEngine the fixture was created with
+
+    # Seed balance 40; two concurrent 30-unit debits → only one can fit.
+    await db_session.execute(
+        sa.text("UPDATE workspaces SET credits_balance_units = 40 WHERE id = 1")
+    )
+    await db_session.commit()
+
+    results = await asyncio.gather(
+        _debit_in_session(engine, 1, 30, "concurrent-a"),
+        _debit_in_session(engine, 1, 30, "concurrent-b"),
+    )
+
+    ok_count = sum(1 for r in results if r == "ok")
+    rejected = [r for r in results if isinstance(r, tuple)]
+    assert ok_count == 1, f"expected exactly one debit to win, got {results}"
+    assert len(rejected) == 1
+    # The loser saw the winner's post-debit balance (10), never a negative.
+    assert rejected[0][2] == 10
+
+    # Final balance is 10 (40-30), never negative, never double-charged.
+    balance = (
+        await db_session.execute(
+            sa.text("SELECT credits_balance_units FROM workspaces WHERE id = 1")
+        )
+    ).scalar_one()
+    assert balance == 10
+
+    # Exactly one usage transaction exists (no phantom second debit).
+    usage_count = (
+        (
+            await db_session.execute(
+                select(CreditTransaction.id).where(CreditTransaction.type == CreditTxnType.usage)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(usage_count) == 1
