@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@radix-ui/react-dialog';
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@radix-ui/react-dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@clerk/nextjs';
 import { api } from '@/lib/api';
@@ -45,14 +45,14 @@ export default function RendersPage() {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button>New render</Button></DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>New render</DialogTitle></DialogHeader>
+            <DialogTitle className="text-lg font-semibold">New render</DialogTitle>
             <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); create.mutate({ prompt: fd.get('prompt') as string, duration_sec: Number(fd.get('duration')), resolution: fd.get('resolution') as string }); }}>
               <div className="space-y-4">
                 <div><Label>Prompt</Label><Input name="prompt" required minLength={1} maxLength={2000} /></div>
                 <div><Label>Duration</Label><Input name="duration" type="number" defaultValue={5} min={5} max={10} /></div>
                 <div><Label>Resolution</Label><Input name="resolution" defaultValue="720p" /></div>
               </div>
-              <DialogFooter><Button type="submit" disabled={create.isPending}>{create.isPending ? 'Submitting...' : 'Submit'}</Button></DialogFooter>
+              <div className="mt-4 flex justify-end"><Button type="submit" disabled={create.isPending}>{create.isPending ? 'Submitting...' : 'Submit'}</Button></div>
             </form>
           </DialogContent>
         </Dialog>
