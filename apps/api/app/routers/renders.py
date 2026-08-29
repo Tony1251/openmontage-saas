@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,11 +12,30 @@ from app.auth import AuthContext, check_idempotency, get_auth, record_idempotenc
 from app.db import get_db
 from app.models import Render, RenderStatus
 from app.schemas.renders import CreateRenderRequest, RenderResponse
+from app.schemas.video import TaskStatus, VideoGenRequest
 from app.services.audit import log as audit_log
-from app.services.openmontage import MCPClient, get_mcp
 from app.services.quota import check_and_increment_renders
+from app.services.video_provider import VideoProvider, get_video_provider
 
 router = APIRouter(tags=["renders"])
+
+# public resolution token → (width, height) pixels for the provider contract.
+_RESOLUTION_DIMS: dict[str, tuple[int, int]] = {
+    "480p": (854, 480),
+    "720p": (1280, 720),
+    "1080p": (1920, 1080),
+}
+
+
+def _to_video_gen_request(body: CreateRenderRequest) -> VideoGenRequest:
+    width, height = _RESOLUTION_DIMS.get(body.resolution, (1280, 720))
+    return VideoGenRequest(
+        prompt=body.prompt,
+        width=width,
+        height=height,
+        duration=body.duration_sec,
+        extra={"model": body.model, **(body.extra_metadata or {})},
+    )
 
 
 @router.post("/renders", status_code=201)
@@ -23,7 +43,7 @@ async def create_render(
     body: CreateRenderRequest,
     auth: Annotated[AuthContext, Depends(get_auth)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    mcp: Annotated[MCPClient, Depends(get_mcp)],
+    provider: Annotated[VideoProvider, Depends(get_video_provider)],
     idempotency_key: Annotated[str | None, Header()] = None,
 ) -> dict:
     existing_id = check_idempotency(idempotency_key)
@@ -40,18 +60,17 @@ async def create_render(
 
     await check_and_increment_renders(db, auth.workspace)
 
+    req = _to_video_gen_request(body)
     try:
-        ark_task_id = await mcp.submit_video_render(
-            prompt=body.prompt,
-            model=body.model,
-            duration_sec=body.duration_sec,
-            resolution=body.resolution,
-            extra_metadata=body.extra_metadata,
-        )
-        status_val = RenderStatus.running if ark_task_id else RenderStatus.queued
-    except Exception:
-        status_val = RenderStatus.queued
-        ark_task_id = ""
+        ark_task_id = await provider.submit(req)
+    except (RuntimeError, httpx.HTTPError) as exc:
+        # Symmetric escape hatch to vision's 503 `vision_unavailable`.
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "video_unavailable", "message": str(exc)},
+        ) from exc
+
+    status_val = RenderStatus.running if ark_task_id else RenderStatus.queued
 
     render = Render(
         workspace_id=auth.workspace.id,
@@ -89,6 +108,7 @@ async def get_render(
     render_id: int,
     auth: Annotated[AuthContext, Depends(get_auth)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    provider: Annotated[VideoProvider, Depends(get_video_provider)],
 ) -> RenderResponse:
     result = await db.execute(
         select(Render).where(Render.id == render_id, Render.workspace_id == auth.workspace.id)
@@ -96,6 +116,30 @@ async def get_render(
     render = result.scalar_one_or_none()
     if not render:
         raise HTTPException(status_code=404, detail={"error": "not_found", "message": "render not found"})
+
+    # Poll active tasks on read: only resolve `video_url` once the provider
+    # reports succeeded; transient poll failures leave the row untouched.
+    if render.status in (RenderStatus.queued, RenderStatus.running) and render.ark_task_id:
+        try:
+            gen = await provider.poll(render.ark_task_id)
+            if gen.status is TaskStatus.succeeded and gen.video_url:
+                # TODO(v1): `gen.video_url` is an Ark *signed* URL (24h expiry).
+                # Must download the mp4 and re-store via `storage.upload_render`
+                # to the SaaS's own OSS/S3 before persisting — never hand tenants
+                # the raw Ark signed URL. Blocked on OSS bucket credentials.
+                render.status = RenderStatus.succeeded
+                render.video_url = gen.video_url
+                render.completed_at = datetime.now(UTC)
+            elif gen.status is TaskStatus.failed:
+                render.status = RenderStatus.failed
+                render.error = gen.error or "video generation failed"
+                render.completed_at = datetime.now(UTC)
+            elif gen.status is TaskStatus.running and render.status is not RenderStatus.running:
+                render.status = RenderStatus.running
+            await db.commit()
+        except (RuntimeError, httpx.HTTPError):
+            pass  # transient — return current persisted state
+
     return RenderResponse(
         id=render.id,
         workspace_id=render.workspace_id,

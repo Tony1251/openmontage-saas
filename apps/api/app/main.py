@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import get_engine
-from app.routers import api_keys, billing, health, renders, users, webhooks
+from app.routers import api_keys, billing, health, renders, users, vision, webhooks
 
 
 @asynccontextmanager
@@ -46,3 +46,4 @@ app.include_router(api_keys.router, prefix="/v1", tags=["api-keys"])
 app.include_router(billing.router, prefix="/v1", tags=["billing"])
 app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 app.include_router(users.router, prefix="/v1", tags=["users"])
+app.include_router(vision.router, prefix="/v1", tags=["vision"])

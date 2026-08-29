@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     oss_access_key_secret: str = ""
     clerk_webhook_secret: str = ""
     redis_url: str = ""
+    ark_api_key: str = ""
+    ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
+    ark_vision_model: str = "doubao-1-5-vision-pro-32k-250115"
+    ark_video_model: str = "doubao-seedance-1-0-pro-250528"
+    video_provider: str = "ark"
 
 
 settings = Settings()
