@@ -39,17 +39,12 @@ jobs:
         run: uv run pytest -q
 
   # ─────────────────────── API · tests on real Postgres 16 ───────────────────────
-  # Runs the credit-ledger module (incl. §7 concurrent-debit) against a real
-  # Postgres so oversell-safety is proven under genuine row-lock semantics —
-  # SQLite's single shared :memory: connection serialises concurrent txns and
-  # cannot exercise the row-lock race. `tests/conftest.py` reads TEST_DATABASE_URL
-  # to swap the fixture off SQLite.
-  #
-  # TODO(devops): widen to `pytest -q` (full suite) once @backend aligns the ORM
-  # datetime columns with the migrations (models use naive `DateTime`, migrations
-  # use `DateTime(timezone=True)`); today `test_video_provider.py`'s two
-  # submit→poll tests write `datetime.now(UTC)` into a naive column and fail on
-  # Postgres. Everything else already passes on Postgres 16.
+  # Runs the FULL API suite against a real Postgres so oversell-safety (§7
+  # concurrent-debit) is proven under genuine row-lock semantics — SQLite's
+  # single shared :memory: connection serialises concurrent txns and cannot
+  # exercise the row-lock race. `tests/conftest.py` reads TEST_DATABASE_URL to
+  # swap the fixture off SQLite. (ORM datetime columns are `DateTime(timezone=True)`
+  # and match the migrations, so the whole suite is Postgres-clean.)
   api-test-postgres:
     name: API · test on Postgres 16
     runs-on: ubuntu-latest
@@ -81,8 +76,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev --frozen
 
-      - name: Pytest (credit ledger + concurrency on Postgres)
-        run: uv run pytest tests/test_credits.py -q
+      - name: Pytest (full suite on Postgres)
+        run: uv run pytest -q
 
   # ─────────────────────────── Web (TypeScript / Next.js) ───────────────────────────
   web-typecheck-lint-build:
