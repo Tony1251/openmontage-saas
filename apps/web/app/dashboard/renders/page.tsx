@@ -39,8 +39,9 @@ export default function RendersPage() {
     queryFn: async () => {
       const token = await getToken();
       api.defaults.headers.common.Authorization = `Bearer ${token}`;
-      const r = await api.get<{ items: Render[] }>('/v1/renders');
-      return r.data.items ?? [];
+      // Backend list endpoint returns { data, has_more, next_cursor } (cursor paginated).
+      const r = await api.get<{ data: Render[]; has_more: boolean; next_cursor: number | null }>('/v1/renders');
+      return r.data.data ?? [];
     },
     // Poll while any render is queued/running so the list converges to terminal state.
     refetchInterval: (q) => {

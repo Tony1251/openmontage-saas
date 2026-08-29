@@ -19,8 +19,9 @@ export default function ApiKeysPage() {
     queryFn: async () => {
       const token = await getToken();
       api.defaults.headers.common.Authorization = `Bearer ${token}`;
-      const r = await api.get<{ items: ApiKey[] }>('/v1/api-keys');
-      return r.data.items ?? [];
+      // Backend returns a bare array of ApiKeyResponse (not wrapped in { items }).
+      const r = await api.get<ApiKey[]>('/v1/api-keys');
+      return r.data ?? [];
     },
   });
 
