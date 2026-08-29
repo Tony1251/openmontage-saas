@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useAuth } from '@clerk/nextjs';
 import { api } from '@/lib/api';
@@ -20,8 +19,9 @@ export default function ApiKeysPage() {
     queryFn: async () => {
       const token = await getToken();
       api.defaults.headers.common.Authorization = `Bearer ${token}`;
-      const r = await api.get<{ items: ApiKey[] }>('/v1/api-keys');
-      return r.data.items ?? [];
+      // Backend returns a bare array of ApiKeyResponse (not wrapped in { items }).
+      const r = await api.get<ApiKey[]>('/v1/api-keys');
+      return r.data ?? [];
     },
   });
 

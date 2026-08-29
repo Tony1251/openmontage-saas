@@ -17,14 +17,16 @@ async def log(
     user_agent: str | None = None,
     metadata: dict | None = None,
 ) -> None:
-    db.add(AuditLog(
-        workspace_id=workspace_id,
-        api_key_id=api_key_id,
-        action=action,
-        resource_type=resource_type,
-        resource_id=resource_id,
-        ip=ip,
-        user_agent=user_agent,
-        metadata=metadata,
-    ))
+    db.add(
+        AuditLog(
+            workspace_id=workspace_id,
+            api_key_id=api_key_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            ip=ip,
+            user_agent=user_agent,
+            metadata=metadata,
+        )
+    )
     await db.commit()

@@ -4,16 +4,20 @@ Revision ID: 001
 Revises:
 Create Date: 2026-07-27 09:00:00.000000+08:00
 """
+
 from __future__ import annotations
-from typing import Sequence, Union
-from alembic import op
+
+from collections.abc import Sequence
+
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
+
 revision: str = "001"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -21,13 +25,20 @@ def upgrade() -> None:
     plan_enum = postgresql.ENUM("free", "pro", "enterprise", name="plan", create_type=False)
     plan_enum.create(op.get_bind(), checkfirst=True)
     render_status_enum = postgresql.ENUM(
-        "queued", "running", "succeeded", "failed", "cancelled",
-        name="render_status", create_type=False,
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        name="render_status",
+        create_type=False,
     )
     render_status_enum.create(op.get_bind(), checkfirst=True)
     api_key_status_enum = postgresql.ENUM(
-        "active", "revoked",
-        name="api_key_status", create_type=False,
+        "active",
+        "revoked",
+        name="api_key_status",
+        create_type=False,
     )
     api_key_status_enum.create(op.get_bind(), checkfirst=True)
 
@@ -39,8 +50,12 @@ def upgrade() -> None:
         sa.Column("email", sa.String(length=255), nullable=False),
         sa.Column("name", sa.Text(), nullable=True),
         sa.Column("avatar_url", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("clerk_user_id"),
         sa.UniqueConstraint("email"),
@@ -55,10 +70,19 @@ def upgrade() -> None:
         sa.Column("slug", sa.String(length=64), nullable=False),
         sa.Column("plan", plan_enum, nullable=False, server_default=sa.text("'free'")),
         sa.Column("stripe_customer_id", sa.String(length=64), nullable=True),
-        sa.Column("monthly_render_quota", sa.Integer(), nullable=False, server_default=sa.text("10")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.ForeignKeyConstraint(["owner_id"], ["users.id"], ),
+        sa.Column(
+            "monthly_render_quota", sa.Integer(), nullable=False, server_default=sa.text("10")
+        ),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.ForeignKeyConstraint(
+            ["owner_id"],
+            ["users.id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("slug"),
         sa.UniqueConstraint("stripe_customer_id"),
@@ -72,7 +96,9 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
         sa.Column("role", sa.String(length=16), nullable=False, server_default=sa.text("'member'")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="cascade"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="cascade"),
         sa.PrimaryKeyConstraint("id"),
@@ -87,9 +113,13 @@ def upgrade() -> None:
         sa.Column("public_key", sa.String(length=32), nullable=False),
         sa.Column("key_hash", sa.String(length=64), nullable=False),
         sa.Column("label", sa.Text(), nullable=True),
-        sa.Column("status", api_key_status_enum, nullable=False, server_default=sa.text("'active'")),
+        sa.Column(
+            "status", api_key_status_enum, nullable=False, server_default=sa.text("'active'")
+        ),
         sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="cascade"),
         sa.PrimaryKeyConstraint("id"),
@@ -105,15 +135,24 @@ def upgrade() -> None:
         sa.Column("api_key_id", sa.Integer(), nullable=True),
         sa.Column("ark_task_id", sa.String(length=128), nullable=True),
         sa.Column("prompt", sa.Text(), nullable=False),
-        sa.Column("model", sa.String(length=64), nullable=False, server_default=sa.text("'doubao-seedance-2-0-260128'")),
+        sa.Column(
+            "model",
+            sa.String(length=64),
+            nullable=False,
+            server_default=sa.text("'doubao-seedance-2-0-260128'"),
+        ),
         sa.Column("duration_sec", sa.Integer(), nullable=False, server_default=sa.text("5")),
-        sa.Column("resolution", sa.String(length=16), nullable=False, server_default=sa.text("'720p'")),
+        sa.Column(
+            "resolution", sa.String(length=16), nullable=False, server_default=sa.text("'720p'")
+        ),
         sa.Column("status", render_status_enum, nullable=False, server_default=sa.text("'queued'")),
         sa.Column("video_url", sa.Text(), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
         sa.Column("cost_cents", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("extra_metadata", postgresql.JSONB, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="cascade"),
         sa.ForeignKeyConstraint(["api_key_id"], ["api_keys.id"], ondelete="set null"),
@@ -130,7 +169,9 @@ def upgrade() -> None:
         sa.Column("period_start", sa.DateTime(timezone=True), nullable=False),
         sa.Column("renders_used", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("api_calls_used", sa.Integer(), nullable=False, server_default=sa.text("0")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="cascade"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("workspace_id", "period_start", name="quota_usage_unique"),
@@ -146,9 +187,15 @@ def upgrade() -> None:
         sa.Column("plan", plan_enum, nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("current_period_end", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("cancel_at_period_end", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "cancel_at_period_end", sa.Boolean(), nullable=False, server_default=sa.text("false")
+        ),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="cascade"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("workspace_id"),
@@ -162,9 +209,16 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.Integer(), nullable=False),
         sa.Column("url", sa.Text(), nullable=False),
         sa.Column("secret", sa.String(length=64), nullable=False),
-        sa.Column("events", postgresql.JSONB, nullable=False, server_default=sa.text("'[\"render.succeeded\",\"render.failed\"]'::jsonb")),
+        sa.Column(
+            "events",
+            postgresql.JSONB,
+            nullable=False,
+            server_default=sa.text('\'["render.succeeded","render.failed"]\'::jsonb'),
+        ),
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="cascade"),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -181,7 +235,9 @@ def upgrade() -> None:
         sa.Column("ip", sa.String(length=64), nullable=True),
         sa.Column("user_agent", sa.Text(), nullable=True),
         sa.Column("extra_metadata", postgresql.JSONB, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="set null"),
         sa.ForeignKeyConstraint(["api_key_id"], ["api_keys.id"], ondelete="set null"),
         sa.PrimaryKeyConstraint("id"),

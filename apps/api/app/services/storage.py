@@ -1,4 +1,5 @@
 """Stub for OSS / S3 upload. Returns a fake URL."""
+
 from __future__ import annotations
 
 

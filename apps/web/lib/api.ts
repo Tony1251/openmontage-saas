@@ -10,11 +10,41 @@ export class ApiError extends Error {
   }
 }
 
+// Structured 402 body from docs/PRICING.md §5.1.
+export class InsufficientCreditsError extends ApiError {
+  constructor(
+    message: string,
+    public credits_required: number,
+    public credits_available: number,
+  ) {
+    super('insufficient_credits', message, 402);
+  }
+}
+
+interface ApiErrorBody {
+  code?: string;
+  error?: string;
+  message?: string;
+  credits_required?: number;
+  credits_available?: number;
+}
+
 api.interceptors.response.use(
   (r) => r,
-  (err: AxiosError<{ error?: string; message?: string }>) => {
+  (err: AxiosError<ApiErrorBody>) => {
     const data = err.response?.data;
-    throw new ApiError(data?.error ?? 'unknown', data?.message ?? err.message, err.response?.status ?? 0);
+    const status = err.response?.status ?? 0;
+    const code = data?.code ?? data?.error ?? 'unknown';
+    const message = data?.message ?? err.message;
+
+    if (status === 402 && code === 'insufficient_credits') {
+      throw new InsufficientCreditsError(
+        message,
+        data?.credits_required ?? 0,
+        data?.credits_available ?? 0,
+      );
+    }
+    throw new ApiError(code, message, status);
   },
 );
 

@@ -3,6 +3,7 @@
 Engine is created lazily so tests can override `settings.database_url` to
 SQLite without the module-level Postgres pool options breaking import.
 """
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator

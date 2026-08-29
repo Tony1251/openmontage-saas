@@ -1,4 +1,5 @@
 """Render endpoint tests against real SQLite + stubbed MCP."""
+
 from __future__ import annotations
 
 import pytest
@@ -34,7 +35,7 @@ async def test_create_render_persists_to_db(client, db_session):
 
     resp = await client.post(
         "/v1/renders",
-        json={"prompt": "cinematic drone shot", "duration_sec": 10, "resolution": "1080p"},
+        json={"prompt": "cinematic drone shot", "duration_sec": 5, "resolution": "720p"},
     )
     assert resp.status_code == 201, resp.text
     render_id = resp.json()["id"]
@@ -47,7 +48,9 @@ async def test_create_render_persists_to_db(client, db_session):
 
 @pytest.mark.asyncio
 async def test_get_render_by_id(client):
-    create = await client.post("/v1/renders", json={"prompt": "hello", "duration_sec": 5, "resolution": "720p"})
+    create = await client.post(
+        "/v1/renders", json={"prompt": "hello", "duration_sec": 5, "resolution": "720p"}
+    )
     assert create.status_code == 201, create.text
     rid = create.json()["id"]
 

@@ -26,6 +26,7 @@ class RenderResponse(BaseModel):
     video_url: str | None
     error: str | None
     cost_cents: int
+    credits_consumed_units: int = 0
     extra_metadata: dict | None
     created_at: str
     completed_at: str | None

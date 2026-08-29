@@ -1,17 +1,28 @@
 """Alembic async migration environment."""
+
 from __future__ import annotations
+
 import asyncio
 import os
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from alembic import context
+
 # Import all models so autogenerate sees them
-from app.models import Base
 from app.models import (  # noqa: F401
-    User, Workspace, WorkspaceMember, ApiKey, Render,
-    QuotaUsage, Subscription, WebhookEndpoint, AuditLog,
+    ApiKey,
+    AuditLog,
+    Base,
+    CreditTransaction,
+    QuotaUsage,
+    Render,
+    Subscription,
+    User,
+    WebhookEndpoint,
+    Workspace,
+    WorkspaceMember,
 )
 
 config = context.config

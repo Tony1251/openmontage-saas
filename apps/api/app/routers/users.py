@@ -8,9 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.models import User, Workspace, WorkspaceMember
+from app.models import CreditTransaction, CreditTxnType, User, Workspace, WorkspaceMember
 
 router = APIRouter(tags=["users"])
+
+FREE_SIGNUP_CREDITS = 40  # docs/PRICING.md §2
 
 
 class SyncUserRequest(BaseModel):
@@ -47,10 +49,19 @@ async def sync_user(
         await db.refresh(user)
 
         ws_result = await db.execute(
-            select(Workspace).where(Workspace.owner_id == user.id).order_by(Workspace.created_at.asc()).limit(1)
+            select(Workspace)
+            .where(Workspace.owner_id == user.id)
+            .order_by(Workspace.created_at.asc())
+            .limit(1)
         )
         ws = ws_result.scalar_one_or_none()
-        return SyncUserResponse(id=user.id, clerk_user_id=user.clerk_user_id, email=user.email, workspace_id=ws.id if ws else None, is_new=False)
+        return SyncUserResponse(
+            id=user.id,
+            clerk_user_id=user.clerk_user_id,
+            email=user.email,
+            workspace_id=ws.id if ws else None,
+            is_new=False,
+        )
     else:
         user = User(
             clerk_user_id=body.clerk_user_id,
@@ -67,10 +78,20 @@ async def sync_user(
             name=f"{body.name or body.email.split('@')[0]}'s Workspace",
             slug=slug,
             plan="free",
-            monthly_render_quota=10,
+            credits_balance_units=FREE_SIGNUP_CREDITS,
         )
         db.add(workspace)
         await db.flush()
+
+        # Free tier signup grant (PRICING.md §2: 40 units on registration).
+        db.add(
+            CreditTransaction(
+                workspace_id=workspace.id,
+                amount_units=FREE_SIGNUP_CREDITS,
+                type=CreditTxnType.grant,
+                idempotency_key=f"signup-{user.id}",
+            )
+        )
 
         member = WorkspaceMember(
             workspace_id=workspace.id,

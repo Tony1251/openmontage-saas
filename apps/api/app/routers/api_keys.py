@@ -22,7 +22,11 @@ async def create_api_key(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ApiKeyWithSecret:
     public_key, full_secret = generate_api_key()
-    secret_part = full_secret[len("sk_live_"):] if full_secret.startswith("sk_live_") else full_secret[len("sk_test_"):]
+    secret_part = (
+        full_secret[len("sk_live_") :]
+        if full_secret.startswith("sk_live_")
+        else full_secret[len("sk_test_") :]
+    )
     key_hash = hash_secret(secret_part)
 
     api_key = ApiKey(
@@ -53,7 +57,9 @@ async def list_api_keys(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[ApiKeyResponse]:
     result = await db.execute(
-        select(ApiKey).where(ApiKey.workspace_id == auth.workspace.id).order_by(ApiKey.created_at.desc())
+        select(ApiKey)
+        .where(ApiKey.workspace_id == auth.workspace.id)
+        .order_by(ApiKey.created_at.desc())
     )
     keys = result.scalars().all()
     return [
@@ -81,7 +87,9 @@ async def revoke_api_key(
     )
     api_key = result.scalar_one_or_none()
     if not api_key:
-        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "api key not found"})
+        raise HTTPException(
+            status_code=404, detail={"error": "not_found", "message": "api key not found"}
+        )
     api_key.status = ApiKeyStatus.revoked
     api_key.revoked_at = datetime.now(UTC)
     await db.commit()

@@ -16,4 +16,8 @@ async def health() -> dict[str, object]:
             await conn.execute(text("SELECT 1"))
     except Exception:
         db_status = "error"
-    return {"status": "ok" if db_status == "ok" else "degraded", "version": "0.1.0", "deps": {"db": db_status}}
+    return {
+        "status": "ok" if db_status == "ok" else "degraded",
+        "version": "0.1.0",
+        "deps": {"db": db_status},
+    }

@@ -9,12 +9,20 @@ class MCPClient:
     def __init__(self) -> None:
         self._client = httpx.AsyncClient(
             base_url=settings.mcp_url,
-            headers={"Authorization": f"Bearer {settings.mcp_token}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {settings.mcp_token}",
+                "Content-Type": "application/json",
+            },
             timeout=60.0,
         )
 
     async def call_tool(self, name: str, arguments: dict) -> dict:
-        payload = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": arguments},
+        }
         resp = await self._client.post("", json=payload)
         resp.raise_for_status()
         data = resp.json()
@@ -22,9 +30,22 @@ class MCPClient:
             raise RuntimeError(f"MCP error: {data['error']}")
         return data.get("result", {})
 
-    async def submit_video_render(self, prompt: str, model: str, duration_sec: int, resolution: str, extra_metadata: dict | None = None) -> str:
+    async def submit_video_render(
+        self,
+        prompt: str,
+        model: str,
+        duration_sec: int,
+        resolution: str,
+        extra_metadata: dict | None = None,
+    ) -> str:
         """Returns ark_task_id."""
-        args = {"prompt": prompt, "model": model, "duration_sec": duration_sec, "resolution": resolution, "metadata": extra_metadata or {}}
+        args = {
+            "prompt": prompt,
+            "model": model,
+            "duration_sec": duration_sec,
+            "resolution": resolution,
+            "metadata": extra_metadata or {},
+        }
         result = await self.call_tool("ark_seedance_video", args)
         return result.get("ark_task_id") or result.get("task_id") or ""
 

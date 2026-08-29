@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import get_engine
-from app.routers import api_keys, billing, health, renders, users, webhooks
+from app.routers import api_keys, billing, health, renders, users, vision, webhooks, workspace
 
 
 @asynccontextmanager
@@ -30,7 +30,10 @@ app = FastAPI(
 )
 
 if os.environ.get("MOCK_MODE") == "true":
-    print("[openmontage-saas] ⚠ MOCK_MODE=true — auth + Stripe bypassed for local dev", file=sys.stderr)
+    print(
+        "[openmontage-saas] ⚠ MOCK_MODE=true — auth + Stripe bypassed for local dev",
+        file=sys.stderr,
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,3 +49,5 @@ app.include_router(api_keys.router, prefix="/v1", tags=["api-keys"])
 app.include_router(billing.router, prefix="/v1", tags=["billing"])
 app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 app.include_router(users.router, prefix="/v1", tags=["users"])
+app.include_router(vision.router, prefix="/v1", tags=["vision"])
+app.include_router(workspace.router, prefix="/v1", tags=["workspace"])
